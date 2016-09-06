@@ -37,8 +37,6 @@ __all__ = ['Lexer']
 import re
 from collections import OrderedDict
 
-from ._meta import RuleMeta
-
 class LexError(Exception):
     '''
     Exception raised if an invalid character is encountered and no default
@@ -70,12 +68,43 @@ class Token(object):
     def __repr__(self):
         return 'Token(%s, %r, %d, %d)' % (self.type, self.value, self.lineno, self.index)
 
-class Lexer(metaclass=RuleMeta):
+class NoDupeDict(OrderedDict):
     '''
-    Representation of a single lexing state.  This class is automatically constructed 
-    by the RuleDict during class definition.
+    Special dictionary that prohits duplicate definitions.
     '''
+    def __setitem__(self, key, value):
+        if key in self and not isinstance(value, property):
+            raise AttributeError('Name %s redefined' % (key))
+        super().__setitem__(key, value)
 
+class LexerMeta(type):
+    '''
+    Metaclass for collecting lexing rules
+    '''
+    @classmethod
+    def __prepare__(meta, *args, **kwargs):
+        d = NoDupeDict()
+        def _(pattern):
+            def decorate(func):
+                if hasattr(func, 'pattern'):
+                    if isinstance(pattern, str):
+                        func.pattern = ''.join(['(', pattern, ')|(', func.pattern, ')'])
+                    else:
+                        func.pattern = b''.join([b'(', pattern, b')|(', func.pattern, b')'])
+                else:
+                    func.pattern = pattern
+                return func
+            return decorate
+        d['_'] = _
+        return d
+
+    def __new__(meta, clsname, bases, attributes):
+        del attributes['_']
+        cls = super().__new__(meta, clsname, bases, attributes)
+        cls._build(list(attributes.items()))
+        return cls
+
+class Lexer(metaclass=LexerMeta):
     # These attributes may be defined in subclasses
     tokens = set()
     literals = set()
@@ -90,11 +119,6 @@ class Lexer(metaclass=RuleMeta):
     _ignored_tokens = set()
     _input_type = str
 
-    def __init__(self, text, lineno=1, index=0):
-        self.text = text
-        self.lineno = lineno
-        self.index = index
-
     @classmethod
     def _collect_rules(cls, definitions):
         '''
@@ -102,7 +126,7 @@ class Lexer(metaclass=RuleMeta):
         '''
         rules = []
         for key, value in definitions:
-            if (key in cls.tokens) or key.startswith('ignore_') or hasattr(value, 'rule'):
+            if (key in cls.tokens) or key.startswith('ignore_') or hasattr(value, 'pattern'):
                 rules.append((key, value))
         return rules
 
@@ -130,7 +154,7 @@ class Lexer(metaclass=RuleMeta):
                 pattern = value
 
             elif callable(value):
-                pattern = value.rule
+                pattern = value.pattern
                 cls._token_funcs[tokname] = value
 
             # Form the regular expression component 
@@ -178,56 +202,74 @@ class Lexer(metaclass=RuleMeta):
             raise LexerBuildError("literals specifier not using same type as tokens (%s)" %
                                   cls._input_type.__name__)
 
-    def __iter__(self):
-        text = self.text
-        index = self.index
-        while True:
-            try:
-                if text[index] in self.ignore:
-                    index += 1
-                    continue
-            except IndexError:
-                if self.eof:
-                    text = self.eof()
-                    if text is not None:
-                        self.text = text
-                        self.index = 0
-                        index = 0
+
+    def tokenize(self, text, lineno=1, index=0):
+        # Local copies of frequently used values
+        _ignored_tokens = self._ignored_tokens
+        _master_re = self._master_re
+        _ignore = self.ignore
+        _token_funcs = self._token_funcs
+        _literals = self._literals
+
+        self.text = text
+        try:
+            while True:
+                try:
+                    if text[index] in _ignore:
+                        index += 1
                         continue
-                break
+                except IndexError:
+                    if self.eof:
+                        text = self.eof()
+                        if text is not None:
+                            index = 0
+                            continue
+                    break
 
-            tok = Token()
-            tok.lineno = self.lineno
-            tok.index = index
-            m = self._master_re.match(text, index)
-            if m:
-                index = m.end()
-                tok.value = m.group()
-                tok.type = m.lastgroup
-                if tok.type in self._token_funcs:
-                    self.index = index
-                    tok = self._token_funcs[tok.type](self, tok)
-                    index = self.index
-                    if not tok:
+                tok = Token()
+                tok.lineno = lineno
+                tok.index = index
+                m = _master_re.match(text, index)
+                if m:
+                    index = m.end()
+                    tok.value = m.group()
+                    tok.type = m.lastgroup
+                    if tok.type in _token_funcs:
+                        self.index = index
+                        self.lineno = lineno
+                        tok = _token_funcs[tok.type](self, tok)
+                        index = self.index
+                        lineno = self.lineno
+                        if not tok:
+                            continue
+
+                    if tok.type in _ignored_tokens:
                         continue
 
-                if tok.type in self._ignored_tokens:
-                    continue
-
-                yield tok
-            else:
-                # No match, see if the character is in literals
-                if text[index] in self._literals:
-                    tok.value = text[index]
-                    tok.type = tok.value
-                    index += 1
                     yield tok
-                else:
-                    # A lexing error
-                    self.index = index
-                    self.error(self.text[self.index:])
-                    index = self.index
 
+                else:
+                    # No match, see if the character is in literals
+                    if text[index] in _literals:
+                        tok.value = text[index]
+                        tok.type = tok.value
+                        index += 1
+                        yield tok
+                    else:
+                        # A lexing error
+                        self.index = index
+                        self.lineno = lineno
+                        self.error(text[index:])
+                        index = self.index
+                        lineno = self.lineno
+
+        # Set the final state of the lexer before exiting (even if exception)
+        finally:
+            self.text = text
+            self.index = index
+            self.lineno = lineno
+
+    # Default implementations of methods that may be subclassed by users
     def error(self, value):
         raise LexError("Illegal character %r at index %d" % (value[0], self.index), value)
 

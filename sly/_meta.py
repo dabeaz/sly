@@ -7,7 +7,7 @@ class NoDupeDict(OrderedDict):
         super().__setitem__(key, value)
 
 class RuleMeta(type):
-    @staticmethod
+    @classmethod
     def __prepare__(meta, *args, **kwargs):
         d = NoDupeDict()
         def _(rule):
