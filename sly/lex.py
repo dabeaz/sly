@@ -222,7 +222,7 @@ class Lexer(metaclass=LexerMeta):
                 except IndexError:
                     if self.eof:
                         text = self.eof()
-                        if text is not None:
+                        if text:
                             index = 0
                             continue
                     break

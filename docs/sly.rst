@@ -50,22 +50,22 @@ following input string::
 
     x = 3 + 42 * (s - t)
 
-A tokenizer splits the string into individual tokens where each token
-has a name and value.  For example, the above text might be described
-by the following token list::
+The first step of any parsing is to break the text into tokens where
+each token has a type and value. For example, the above text might be
+described by the following list of token tuples::
 
     [ ('ID','x'), ('EQUALS','='), ('NUMBER','3'), 
-      ('PLUS','+'), ('NUMBER','42), ('TIMES','*'),
+      ('PLUS','+'), ('NUMBER','42'), ('TIMES','*'),
       ('LPAREN','('), ('ID','s'), ('MINUS','-'),
       ('ID','t'), ('RPAREN',')' ]
 
-The ``Lexer`` class is used to do this.   Here is a sample of a simple
-tokenizer::
+The SLY ``Lexer`` class is used to do this.   Here is a sample of a simple
+lexer::
 
     # ------------------------------------------------------------
     # calclex.py
     #
-    # tokenizer for a simple expression evaluator for
+    # Lexer for a simple expression evaluator for
     # numbers and +,-,*,/
     # ------------------------------------------------------------
 
@@ -83,7 +83,7 @@ tokenizer::
             'RPAREN',
             )
 
-        # String containining ignored characters (spaces and tabs)
+        # String containing ignored characters (spaces and tabs)
         ignore = ' \t'
 
         # Regular expression rules for simple tokens
@@ -107,7 +107,8 @@ tokenizer::
 
         # Error handling rule (skips ahead one character)
         def error(self, value):
-            print("Line %d: Illegal character '%s'" % (self.lineno, value[0]))
+            print("Line %d: Illegal character '%s'" %
+	          (self.lineno, value[0]))
             self.index += 1
 
     if __name__ == '__main__':
@@ -134,22 +135,18 @@ When executed, the example will produce the following output::
     Line 3: Illegal character '^'
     Token(NUMBER, 2, 3, 50)
 
-The tokens produced by the ``lexer.tokenize()`` methods are instances
-of type ``Token``.  The ``type`` and ``value`` attributes contain the
-token name and value respectively.  The ``lineno`` and ``index``
+A lexer only has one public method ``tokenize()``.  This is a generator
+function that produces a stream of ``Token`` instances.
+The ``type`` and ``value`` attributes of ``Token`` contain the
+token type name and value respectively.  The ``lineno`` and ``index``
 attributes contain the line number and position in the input text
-where the token appears. Here is an example of accessing these
-attributes::
-
-    for tok in lexer.tokenize(data):
-        print(tok.type, tok.value,  tok.lineno, tok.index)
-
+where the token appears. 
 
 The tokens list
----------------
+^^^^^^^^^^^^^^^
 
-All lexers must provide a list ``tokens`` that defines all of the possible token
-names that can be produced by the lexer.  This list is always required
+Lexers must specify a ``tokens`` attribute that defines all of the possible token
+type names that can be produced by the lexer.  This list is always required
 and is used to perform a variety of validation checks.  
 
 In the example, the following code specified the token names::
@@ -169,52 +166,67 @@ In the example, the following code specified the token names::
         ...
 
 Specification of tokens
------------------------
-Each token is specified by writing a regular expression rule compatible with Python's ``re`` module.  Each of these rules
-are defined by making declarations that match the names of the tokens provided in the tokens list.
-For simple tokens, the regular expression is specified as a string such as this::
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Tokens are specified by writing a regular expression rule compatible
+with Python's ``re`` module.  This is done by writing definitions that
+match one of the names of the tokens provided in the ``tokens``
+attribute.  For example::
 
     PLUS = r'\+'
     MINUS = r'-'
-    
-If some kind of action needs to be performed when a token is matched,
-a token rule can be specified as a function.  In this case, the
-associated regular expression is given using the ``@_` decorator like
-this::
+
+Sometimes you want to perform an action when a token is matched.  For example,
+maybe you want to convert a numeric value or look up a symbol.  To do
+this, write your action as a method and give the associated regular
+expression using the ``@_()`` decorator like this::
 
     @_(r'\d+')
     def NUMBER(self, t):
         t.value = int(t.value)
         return t
 
-The function always takes a single argument which is an instance of
-``Token``.  By default, ``t.type`` is set to the name of the
-definition (e.g., ``'NUMBER'``).  The function can change the token
-type and value as it sees appropriate.  When finished, the resulting
-token object should be returned. If no value is returned by the
+The method always takes a single argument which is an instance of
+``Token``.  By default, ``t.type`` is set to the name of the token
+(e.g., ``'NUMBER'``).  The function can change the token type and
+value as it sees appropriate.  When finished, the resulting token
+object should be returned as a result. If no value is returned by the
 function, the token is simply discarded and the next token read.
 
-Internally, the ``Lexer`` class uses the ``re`` module to do its pattern matching.  Patterns are compiled
-using the ``re.VERBOSE`` flag which can be used to help readability.  However, be aware that unescaped
-whitespace is ignored and comments are allowed in this mode.  If your pattern involves whitespace, make sure you
-use ``\s``.  If you need to match the ``#`` character, use ``[#]``.
+Internally, the ``Lexer`` class uses the ``re`` module to do its
+pattern matching.  Patterns are compiled using the ``re.VERBOSE`` flag
+which can be used to help readability.  However, be aware that
+unescaped whitespace is ignored and comments are allowed in this mode.
+If your pattern involves whitespace, make sure you use ``\s``.  If you
+need to match the ``#`` character, use ``[#]``.
 
-When building the master regular expression, rules are added in the
-same order as they are listed in the ``Lexer`` class.  Be aware that
-longer tokens may need to be specified before short tokens.  For
-example, if you wanted to have separate tokens for "=" and "==", you
-need to make sure that "==" is listed first.
+Controlling Match Order
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Tokens are matched in the same order as patterns are listed in the
+``Lexer`` class.  Be aware that longer tokens may need to be specified
+before short tokens.  For example, if you wanted to have separate
+tokens for "=" and "==", you need to make sure that "==" is listed
+first.  For example::
+
+    class MyLexer(Lexer):
+        tokens = ('ASSIGN', 'EQUALTO', ...)
+        ...
+        EQUALTO = r'=='       # MUST APPEAR FIRST!
+        ASSIGN  = r'='
 
 To handle reserved words, you should write a single rule to match an
 identifier and do a special name lookup in a function like this::
 
-    class CalcLexer(Lexer):
+    class MyLexer(Lexer):
  
         reserved = { 'if', 'then', 'else', 'while' }
         tokens = ['LPAREN','RPAREN',...,'ID'] + [ w.upper() for w in reserved ]
 
         @_(r'[a-zA-Z_][a-zA-Z_0-9]*')
         def ID(self, t):
+            # Check to see if the name is a reserved word
+            # If so, change its type.
             if t.value in self.reserved:
                 t.type = t.value.upper()
             return t
@@ -226,25 +238,25 @@ For example, suppose you wrote rules like this::
     PRINT = r'print'
 
 In this case, the rules will be triggered for identifiers that include
-those words as a prefix such as "forget" or "printed".  This is
-probably not what you want.
+those words as a prefix such as "forget" or "printed".  
+This is probably not what you want.
 
-Discarded tokens
-----------------
-To discard a token, such as a comment, simply define a token rule that returns no value.  For example::
+Discarded text
+^^^^^^^^^^^^^^
+To discard text, such as a comment, simply define a token rule that returns no value.  For example::
 
     @_(r'\#.*')
     def COMMENT(self, t):
         pass
         # No return value. Token discarded
 
-Alternatively, you can include the prefix "ignore_" in the token declaration to force a token to be ignored.  For example:
+Alternatively, you can include the prefix ``ignore_`` in a token
+declaration to force a token to be ignored.  For example:
 
     ignore_COMMENT = r'\#.*'
 
-
-Line numbers and positional information
----------------------------------------
+Line numbers and position tracking
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 By default, lexers know nothing about line numbers.  This is because
 they don't know anything about what constitutes a "line" of input
@@ -265,7 +277,7 @@ Lexers do not perform and kind of automatic column tracking.  However,
 it does record positional information related to each token in the
 ``index`` attribute.  Using this, it is usually possible to compute
 column information as a separate step.  For instance, you could count
-backwards until you reach a newline::
+backwards until you reach the previous newline::
 
     # Compute column. 
     #     input is the input text string
@@ -279,19 +291,19 @@ backwards until you reach a newline::
 
 Since column information is often only useful in the context of error
 handling, calculating the column position can be performed when needed
-as opposed to doing it for each token.
+as opposed to including it on each token.
 
 Ignored characters
-------------------
+^^^^^^^^^^^^^^^^^^
 
-The special ``ignore`` rule is reserved for characters that should be
-completely ignored in the input stream.  Usually this is used to skip
-over whitespace and other non-essential characters.  Although it is
-possible to define a regular expression rule for whitespace in a
-manner similar to ``newline()``, the use of ``ignore`` provides
-substantially better lexing performance because it is handled as a
-special case and is checked in a much more efficient manner than the
-normal regular expression rules.
+The special ``ignore`` specification is reserved for characters that
+should be completely ignored in the input stream.  Usually this is
+used to skip over whitespace and other non-essential characters.
+Although it is possible to define a regular expression rule for
+whitespace in a manner similar to ``newline()``, the use of ``ignore``
+provides substantially better lexing performance because it is handled
+as a special case and is checked in a much more efficient manner than
+the normal regular expression rules.
 
 The characters given in ``ignore`` are not ignored when such
 characters are part of other regular expression patterns.  For
@@ -301,10 +313,10 @@ way).  The main purpose of ``ignore`` is to ignore whitespace and
 other padding between the tokens that you actually want to parse.
 
 Literal characters
-------------------
+^^^^^^^^^^^^^^^^^^
 
-Literal characters can be specified by defining a variable ``literals`` in the class.
-For example::
+Literal characters can be specified by defining a variable
+``literals`` in the class.  For example::
 
      class MyLexer(Lexer):
          ...
@@ -319,7 +331,7 @@ of the literal characters, it will always take precedence.
 When a literal token is returned, both its ``type`` and ``value``
 attributes are set to the character itself. For example, ``'+'``.
 
-It's possible to write token functions that perform additional actions
+It's possible to write token methods that perform additional actions
 when literals are matched.  However, you'll need to set the token type
 appropriately. For example::
 
@@ -327,63 +339,85 @@ appropriately. For example::
 
           literals = [ '{', '}' ]
 
+          def __init__(self):
+              self.indentation_level = 0
+
           @_(r'\{')
           def lbrace(self, t):
               t.type = '{'      # Set token type to the expected literal
+	      self.indentation_level += 1
               return t
 
           @_(r'\}')
           def rbrace(t):
               t.type = '}'      # Set token type to the expected literal
+	      self.indentation_level -=1
               return t
 
 Error handling
---------------
+^^^^^^^^^^^^^^
 
-The ``error()``
-function is used to handle lexing errors that occur when illegal
-characters are detected.  The error function receives a string containing
-all remaining untokenized text.  A typical handler might skip ahead 
-in the input. For example::
+The ``error()`` method is used to handle lexing errors that occur when
+illegal characters are detected.  The error method receives a string
+containing all remaining untokenized text.  A typical handler might
+look at this text and skip ahead in some manner.  For example::
 
-    # Error handling rule
-    def error(self, value):
-        print("Illegal character '%s'" % value[0])
-        self.index += 1
+    class MyLexer(Lexer):
+        ...
+        # Error handling rule
+        def error(self, value):
+            print("Illegal character '%s'" % value[0])
+            self.index += 1
 
-In this case, we simply print the offending character and skip ahead one character by updating the
-lexer position.
+In this case, we simply print the offending character and skip ahead
+one character by updating the lexer position.   Error handling in a
+parser is often a hard problem.  An error handler might scan ahead
+to a logical synchronization point such as a semicolon, a blank line,
+or similar landmark.
 
 EOF Handling
-------------
+^^^^^^^^^^^^
 
-An optional ``eof()`` method can be used to handle an end-of-file (EOF) condition in the input.   
-Write me::
+The lexer will produce tokens until it reaches the end of the supplied
+input string.  An optional ``eof()`` method can be used to handle an
+end-of-file (EOF) condition in the input.  For example::
 
-    # EOF handling rule
-    def eof(self):
-        # Get more input (Example)
-        more = raw_input('... ')
-        if more:
-            self.lexer.input(more)
-            return self.lexer.token()
-        return None
+    class MyLexer(Lexer):
+        ...
+        # EOF handling rule
+        def eof(self):
+            # Get more input (Example)
+            more = input('more > ')
+            return more
 
-Maintaining state
------------------
-In your lexer, you may want to maintain a variety of state
+The ``eof()`` method should return a string as a result.  Be aware
+that reading input in chunks may require great attention to the
+handling of chunk boundaries.  Specifically, you can't break the text
+such that a chunk boundary appears in the middle of a token (for
+example, splitting input in the middle of a quoted string). For
+this reason, you might have to do some additional framing 
+of the data such as splitting into lines or blocks to make it work. 
+
+Maintaining extra state
+^^^^^^^^^^^^^^^^^^^^^^^
+
+In your lexer, you may want to maintain a variety of other state
 information.  This might include mode settings, symbol tables, and
-other details.  As an example, suppose that you wanted to keep
-track of how many NUMBER tokens had been encountered.  
-You can do this by adding an ``__init__()`` method. For example::
+other details.  As an example, suppose that you wanted to keep track
+of how many NUMBER tokens had been encountered.  You can do this by
+adding an ``__init__()`` method and adding more attributes. For
+example::
 
-class MyLexer(Lexer):
-    def __init__(self):
-        self.num_count = 0
+    class MyLexer(Lexer):
+        def __init__(self):
+            self.num_count = 0
 
-    @_(r'\d+')
-    def NUMBER(self,t):
-        self.num_count += 1
-        t.value = int(t.value)    
-        return t
+        @_(r'\d+')
+        def NUMBER(self,t):
+            self.num_count += 1
+            t.value = int(t.value)    
+            return t
+
+Please note that lexers already use the ``lineno`` and ``position``
+attributes during parsing.
 
