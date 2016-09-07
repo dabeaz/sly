@@ -383,18 +383,15 @@ class Grammar(object):
 
         # Look for literal tokens
         for n, s in enumerate(syms):
-            if s[0] in "'\"":
-                try:
-                    c = eval(s)
-                    if (len(c) > 1):
-                        raise GrammarError('%s:%d: Literal token %s in rule %r may only be a single character' %
-                                           (file, line, s, prodname))
-                    if c not in self.Terminals:
-                        self.Terminals[c] = []
-                    syms[n] = c
-                    continue
-                except SyntaxError:
-                    pass
+            if s[0] in "'\"" and s[0] == s[-1]:
+                c = s[1:-1]
+                if (len(c) != 1):
+                    raise GrammarError('%s:%d: Literal token %s in rule %r may only be a single character' %
+                                       (file, line, s, prodname))
+                if c not in self.Terminals:
+                    self.Terminals[c] = []
+                syms[n] = c
+                continue
 
         # Determine the precedence level
         if '%prec' in syms:
@@ -1502,43 +1499,54 @@ class LRTable(object):
 
         return '\n'.join(out)
 
-# -----------------------------------------------------------------------------
-# _parse_grammar_rule()
-#
-# This takes a raw grammar rule string and parses it into production data
-# -----------------------------------------------------------------------------
-def _parse_grammar_rule(doc, file, line):
+# Collect grammar rules from a function
+def _collect_grammar_rules(func):
     grammar = []
-    # Split the doc string into lines
-    pstrings = doc.splitlines()
-    lastp = None
-    for dline, ps in enumerate(pstrings, start=line):
-        p = ps.split()
-        if not p:
-            continue
-        try:
-            if p[0] == '|':
-                # This is a continuation of a previous rule
-                if not lastp:
-                    raise SyntaxError("%s:%d: Misplaced '|'" % (file, dline))
-                prodname = lastp
-                syms = p[1:]
+    while func:
+        prodname = func.__name__
+        unwrapped = inspect.unwrap(func)
+        filename = unwrapped.__code__.co_filename
+        lineno = unwrapped.__code__.co_firstlineno
+        for rule, lineno in zip(func.rules, range(lineno+len(func.rules)-1, 0, -1)):
+            syms = rule.split()
+            if syms[1:2] == [':'] or syms[1:2] == ['::=']:
+                grammar.append((func, filename, lineno, syms[0], syms[2:]))
             else:
-                prodname = lastp = p[0]
-                syms   = p[2:]
-                assign = p[1]
-                if assign != ':' and assign != '::=':
-                    raise SyntaxError("%s:%d: Syntax error. Expected ':'" % (file, dline))
-
-            grammar.append((file, dline, prodname, syms))
-        except SyntaxError:
-            raise
-        except Exception:
-            raise SyntaxError('%s:%d: Syntax error in rule %r' % (file, dline, ps.strip()))
-
+                grammar.append((func, filename, lineno, prodname, syms))
+        func = getattr(func, 'next_func', None)
     return grammar
 
-class Parser(metaclass=RuleMeta):
+class OverloadDict(OrderedDict):
+    '''
+    Dictionary that allows decorated grammar rule functions to be overloaded
+    '''
+    def __setitem__(self, key, value):
+        if key in self and callable(value) and hasattr(value, 'rules'):
+            value.next_func = self[key]
+        super().__setitem__(key, value)
+
+class ParserMeta(type):
+    @classmethod
+    def __prepare__(meta, *args, **kwargs):
+        d = OverloadDict()
+        def _(*rules):
+            def decorate(func):
+                if hasattr(func, 'rules'):
+                    func.rules.extend(rules[::-1])
+                else:
+                    func.rules = list(rules[::-1])
+                return func
+            return decorate
+        d['_'] = _
+        return d
+
+    def __new__(meta, clsname, bases, attributes):
+        del attributes['_']
+        cls = super().__new__(meta, clsname, bases, attributes)
+        cls._build(list(attributes.items()))
+        return cls
+
+class Parser(metaclass=ParserMeta):
     # Logging object where debugging/diagnostic messages are sent
     log = PlyLogger(sys.stderr)     
 
@@ -1625,21 +1633,17 @@ class Parser(metaclass=RuleMeta):
                 fail = True
 
         for name, func in rules:
-            # Possible validation of function arguments?
             try:
-                file = inspect.getsourcefile(func)
-                line = func.__code__.co_firstlineno
-                parsed_rule = _parse_grammar_rule(func.rule, file, line)
-                for rulefile, ruleline, prodname, syms in parsed_rule:
+                parsed_rule = _collect_grammar_rules(func)
+                for pfunc, rulefile, ruleline, prodname, syms in parsed_rule:
                     try:
-                        grammar.add_production(prodname, syms, func, rulefile, ruleline)
+                        grammar.add_production(prodname, syms, pfunc, rulefile, ruleline)
                     except GrammarError as e:
                         cls.log.error(str(e))
                         fail = True
             except SyntaxError as e:
                 cls.log.error(str(e))
                 fail = True
-
         try:
             grammar.set_start(getattr(cls, 'start', None))
         except GrammarError as e:
@@ -1717,7 +1721,7 @@ class Parser(metaclass=RuleMeta):
         Collect all of the tagged grammar rules
         '''
         rules = [ (name, value) for name, value in definitions
-                  if callable(value) and hasattr(value, 'rule') ]
+                  if callable(value) and hasattr(value, 'rules') ]
         return rules
 
     # ----------------------------------------------------------------------

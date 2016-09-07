@@ -42,19 +42,19 @@ class CalcParser(Parser):
     def __init__(self):
         self.names = { }
 
-    @_('statement : NAME "=" expression')
-    def statement_assign(self, p):
+    @_('NAME "=" expression')
+    def statement(self, p):
         self.names[p[1]] = p[3]
 
-    @_('statement : expression')
-    def statement_expr(self, p):
+    @_('expression')
+    def statement(self, p):
         print(p[1])
 
-    @_('''expression : expression '+' expression
-                     | expression '-' expression
-                     | expression '*' expression
-                     | expression '/' expression''')
-    def expression_binop(self, p):
+    @_('expression "+" expression',
+       'expression "-" expression',
+       'expression "*" expression',
+       'expression "/" expression')
+    def expression(self, p):
         if p[2] == '+':
             p[0] = p[1] + p[3]
         elif p[2] == '-':
@@ -64,20 +64,20 @@ class CalcParser(Parser):
         elif p[2] == '/':
             p[0] = p[1] / p[3]
 
-    @_('expression : "-" expression %prec UMINUS')
-    def expression_uminus(self, p):
+    @_('"-" expression %prec UMINUS')
+    def expression(self, p):
         p[0] = -p[2]
 
-    @_('expression : "(" expression ")"')
-    def expression_group(self, p):
+    @_('"(" expression ")"')
+    def expression(self, p):
         p[0] = p[2]
 
-    @_('expression : NUMBER')
-    def expression_number(self, p):
+    @_('NUMBER')
+    def expression(self, p):
         p[0] = p[1]
 
-    @_('expression : NAME')
-    def expression_name(self, p):
+    @_('NAME')
+    def expression(self, p):
         try:
             p[0] = self.names[p[1]]
         except LookupError:

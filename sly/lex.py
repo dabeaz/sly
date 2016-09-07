@@ -84,15 +84,16 @@ class LexerMeta(type):
     @classmethod
     def __prepare__(meta, *args, **kwargs):
         d = NoDupeDict()
-        def _(pattern):
+        def _(*patterns):
             def decorate(func):
-                if hasattr(func, 'pattern'):
-                    if isinstance(pattern, str):
-                        func.pattern = ''.join(['(', pattern, ')|(', func.pattern, ')'])
+                for pattern in patterns:
+                    if hasattr(func, 'pattern'):
+                        if isinstance(pattern, str):
+                            func.pattern = ''.join(['(', pattern, ')|(', func.pattern, ')'])
+                        else:
+                            func.pattern = b''.join([b'(', pattern, b')|(', func.pattern, b')'])
                     else:
-                        func.pattern = b''.join([b'(', pattern, b')|(', func.pattern, b')'])
-                else:
-                    func.pattern = pattern
+                        func.pattern = pattern
                 return func
             return decorate
         d['_'] = _
