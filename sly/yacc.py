@@ -35,8 +35,6 @@ import sys
 import inspect
 from collections import OrderedDict
 
-from ._meta import RuleMeta
-
 __version__    = '0.0'
 __all__        = [ 'Parser' ]
 
