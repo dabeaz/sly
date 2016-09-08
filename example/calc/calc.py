@@ -44,46 +44,45 @@ class CalcParser(Parser):
 
     @_('NAME "=" expression')
     def statement(self, p):
-        self.names[p[1]] = p[3]
+        self.names[p.NAME] = p.expression
 
     @_('expression')
     def statement(self, p):
-        print(p[1])
+        print(p.expression)
 
     @_('expression "+" expression',
        'expression "-" expression',
        'expression "*" expression',
        'expression "/" expression')
     def expression(self, p):
-        if p[2] == '+':
-            p[0] = p[1] + p[3]
-        elif p[2] == '-':
-            p[0] = p[1] - p[3]
-        elif p[2] == '*':
-            p[0] = p[1] * p[3]
-        elif p[2] == '/':
-            p[0] = p[1] / p[3]
+        if p[1] == '+':
+            return p.expression0 + p.expression1
+        elif p[1] == '-':
+            return p.expression0 - p.expression1
+        elif p[1] == '*':
+            return p.expression0 * p.expression1
+        elif p[1] == '/':
+            return p.expression0 / p.expression1
 
     @_('"-" expression %prec UMINUS')
     def expression(self, p):
-        p[0] = -p[2]
+        return -p.expression
 
     @_('"(" expression ")"')
     def expression(self, p):
-        p[0] = p[2]
+        return p.expression
 
     @_('NUMBER')
     def expression(self, p):
-        p[0] = p[1]
+        return p.NUMBER
 
     @_('NAME')
     def expression(self, p):
         try:
-            p[0] = self.names[p[1]]
+            return self.names[p.NAME]
         except LookupError:
-            print("Undefined name '%s'" % p[1])
-            p[0] = 0
-
+            print("Undefined name '%s'" % p.NAME)
+            return 0
 
 if __name__ == '__main__':
     lexer = CalcLexer()

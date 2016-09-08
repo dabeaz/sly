@@ -68,9 +68,9 @@ class Token(object):
     def __repr__(self):
         return 'Token(%s, %r, %d, %d)' % (self.type, self.value, self.lineno, self.index)
 
-class NoDupeDict(OrderedDict):
+class LexerMetaDict(OrderedDict):
     '''
-    Special dictionary that prohits duplicate definitions.
+    Special dictionary that prohits duplicate definitions in lexer specifications.
     '''
     def __setitem__(self, key, value):
         if key in self and not isinstance(value, property):
@@ -83,17 +83,15 @@ class LexerMeta(type):
     '''
     @classmethod
     def __prepare__(meta, *args, **kwargs):
-        d = NoDupeDict()
-        def _(*patterns):
+        d = LexerMetaDict()
+        def _(pattern, *extra):
+            patterns = [pattern, *extra]
             def decorate(func):
-                for pattern in patterns:
-                    if hasattr(func, 'pattern'):
-                        if isinstance(pattern, str):
-                            func.pattern = ''.join(['(', pattern, ')|(', func.pattern, ')'])
-                        else:
-                            func.pattern = b''.join([b'(', pattern, b')|(', func.pattern, b')'])
-                    else:
-                        func.pattern = pattern
+                pattern = '|'.join('(%s)' % pat for pat in patterns )
+                if hasattr(func, 'pattern'):
+                    func.pattern = pattern + '|' + func.pattern
+                else:
+                    func.pattern = pattern
                 return func
             return decorate
         d['_'] = _
@@ -109,7 +107,7 @@ class Lexer(metaclass=LexerMeta):
     # These attributes may be defined in subclasses
     tokens = set()
     literals = set()
-    ignore = None
+    ignore = ''
     reflags = 0
 
     # These attributes are constructed automatically by the associated metaclass
@@ -118,7 +116,6 @@ class Lexer(metaclass=LexerMeta):
     _literals = set()
     _token_funcs = { }
     _ignored_tokens = set()
-    _input_type = str
 
     @classmethod
     def _collect_rules(cls, definitions):
@@ -151,7 +148,7 @@ class Lexer(metaclass=LexerMeta):
                 tokname = tokname[7:]
                 cls._ignored_tokens.add(tokname)
 
-            if isinstance(value, (str, bytes)):
+            if isinstance(value, str):
                 pattern = value
 
             elif callable(value):
@@ -159,10 +156,7 @@ class Lexer(metaclass=LexerMeta):
                 cls._token_funcs[tokname] = value
 
             # Form the regular expression component 
-            if isinstance(pattern, str):
-                part = '(?P<%s>%s)' % (tokname, pattern)
-            else:
-                part = b'(?P<%s>%s)' % (tokname.encode('ascii'), pattern)
+            part = '(?P<%s>%s)' % (tokname, pattern)
 
             # Make sure the individual regex compiles properly
             try:
@@ -171,38 +165,24 @@ class Lexer(metaclass=LexerMeta):
                 raise PatternError('Invalid regex for token %s' % tokname) from e
 
             # Verify that the pattern doesn't match the empty string
-            if cpat.match(type(pattern)()):
+            if cpat.match(''):
                 raise PatternError('Regex for token %s matches empty input' % tokname)
 
             parts.append(part)
 
-        # If no parts collected, then no rules to process
         if not parts:
             return
 
-        # Verify that all of the patterns are of the same type
-        if not all(type(part) == type(parts[0]) for part in parts):
-            raise LexerBuildError('Tokens are specified using both bytes and strings.')
-
         # Form the master regular expression
-        if parts and isinstance(parts[0], bytes):
-            previous = (b'|' + cls._master_re.pattern) if cls._master_re else b''
-            cls._master_re = re.compile(b'|'.join(parts) + previous, cls.reflags)
-            cls._input_type = bytes
-        else:
-            previous = ('|' + cls._master_re.pattern) if cls._master_re else ''
-            cls._master_re = re.compile('|'.join(parts) + previous, cls.reflags)
-            cls._input_type = str
+        previous = ('|' + cls._master_re.pattern) if cls._master_re else ''
+        cls._master_re = re.compile('|'.join(parts) + previous, cls.reflags)
 
         # Verify that that ignore and literals specifiers match the input type
-        if cls.ignore is not None and not isinstance(cls.ignore, cls._input_type):
-            raise LexerBuildError("ignore specifier type doesn't match token types (%s)" %
-                                  cls._input_type.__name__)
+        if not isinstance(cls.ignore, str):
+            raise LexerBuildError('ignore specifier must be a string')
         
-        if not all(isinstance(lit, cls._input_type) for lit in cls.literals):
-            raise LexerBuildError("literals specifier not using same type as tokens (%s)" %
-                                  cls._input_type.__name__)
-
+        if not all(isinstance(lit, str) for lit in cls.literals):
+            raise LexerBuildError("literals must be specified as strings")
 
     def tokenize(self, text, lineno=1, index=0):
         # Local copies of frequently used values
@@ -220,11 +200,6 @@ class Lexer(metaclass=LexerMeta):
                         index += 1
                         continue
                 except IndexError:
-                    if self.eof:
-                        text = self.eof()
-                        if text:
-                            index = 0
-                            continue
                     break
 
                 tok = Token()
@@ -270,9 +245,6 @@ class Lexer(metaclass=LexerMeta):
             self.index = index
             self.lineno = lineno
 
-    # Default implementations of methods that may be subclassed by users
+    # Default implementations of the error handler. May be changed in subclasses
     def error(self, value):
         raise LexError("Illegal character %r at index %d" % (value[0], self.index), value)
-
-    def eof(self):
-        pass

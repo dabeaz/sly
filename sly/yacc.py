@@ -33,7 +33,7 @@
 
 import sys
 import inspect
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 __version__    = '0.0'
 __all__        = [ 'Parser' ]
@@ -104,31 +104,39 @@ class YaccSymbol:
 
 class YaccProduction:
     def __init__(self, s, stack=None):
-        self.slice = s
-        self.stack = stack
+        self._slice = s
+        self._stack = stack
+        self._namemap = { }
 
     def __getitem__(self, n):
-        if isinstance(n, slice):
-            return [s.value for s in self.slice[n]]
-        elif n >= 0:
-            return self.slice[n].value
+        if n >= 0:
+            return self._slice[n].value
         else:
-            return self.stack[n].value
+            return self._stack[n].value
 
     def __setitem__(self, n, v):
-        self.slice[n].value = v
+        self._slice[n].value = v
 
     def __len__(self):
-        return len(self.slice)
+        return len(self._slice)
 
     def lineno(self, n):
-        return getattr(self.slice[n], 'lineno', 0)
+        return getattr(self._slice[n], 'lineno', 0)
 
     def set_lineno(self, n, lineno):
-        self.slice[n].lineno = lineno
+        self._slice[n].lineno = lineno
 
     def index(self, n):
-        return getattr(self.slice[n], 'index', 0)
+        return getattr(self._slice[n], 'index', 0)
+
+    def __getattr__(self, name):
+        return self._slice[self._namemap[name]].value
+
+    def __setattr__(self, name, value):
+        if name[0:1] == '_' or name not in self._namemap:
+            super().__setattr__(name, value)
+        else:
+            self._slice[self._namemap[name]].value = value
 
 # -----------------------------------------------------------------------------
 #                          === Grammar Representation ===
@@ -171,17 +179,29 @@ class Production(object):
         self.file     = file
         self.line     = line
         self.prec     = precedence
-
+        
         # Internal settings used during table construction
-
         self.len  = len(self.prod)   # Length of the production
 
         # Create a list of unique production symbols used in the production
         self.usyms = []
-        for s in self.prod:
+        symmap = defaultdict(list)
+        for n, s in enumerate(self.prod):
+            symmap[s].append(n)
             if s not in self.usyms:
                 self.usyms.append(s)
 
+        # Create a dict mapping symbol names to indices
+        m = {}
+        for key, indices in symmap.items():
+            if len(indices) == 1:
+                m[key] = indices[0]
+            else:
+                for n, index in enumerate(indices):
+                    m[key+str(n)] = index
+
+        self.namemap = m
+                
         # List of all LR items for the production
         self.lr_items = []
         self.lr_next = None
@@ -1512,9 +1532,10 @@ def _collect_grammar_rules(func):
             else:
                 grammar.append((func, filename, lineno, prodname, syms))
         func = getattr(func, 'next_func', None)
+
     return grammar
 
-class OverloadDict(OrderedDict):
+class ParserMetaDict(OrderedDict):
     '''
     Dictionary that allows decorated grammar rule functions to be overloaded
     '''
@@ -1526,13 +1547,11 @@ class OverloadDict(OrderedDict):
 class ParserMeta(type):
     @classmethod
     def __prepare__(meta, *args, **kwargs):
-        d = OverloadDict()
-        def _(*rules):
+        d = ParserMetaDict()
+        def _(rule, *extra):
+            rules = [rule, *extra]
             def decorate(func):
-                if hasattr(func, 'rules'):
-                    func.rules.extend(rules[::-1])
-                else:
-                    func.rules = list(rules[::-1])
+                func.rules = [ *getattr(func, 'rules', []), *rules[::-1] ]
                 return func
             return decorate
         d['_'] = _
@@ -1788,9 +1807,9 @@ class Parser(metaclass=ParserMeta):
         self.statestack.append(0)
         self.state = 0
 
-    def parse(self, lexer):
+    def parse(self, tokens):
         '''
-        Parse the given input text.  lexer is a Lexer object that produces tokens
+        Parse the given input tokens.
         '''
         lookahead = None                                  # Current lookahead symbol
         lookaheadstack = []                               # Stack of lookahead symbols
@@ -1800,10 +1819,6 @@ class Parser(metaclass=ParserMeta):
         defaulted_states = self._lrtable.defaulted_states # Local reference to defaulted states
         pslice  = YaccProduction(None)                    # Production object passed to grammar rules
         errorcount = 0                                    # Used during error recovery
-
-        # Save a local reference of the lexer being used
-        self.lexer = lexer
-        tokens = iter(self.lexer)
 
         # Set up the state and symbol stacks
         self.statestack = statestack = []                 # Stack of parsing states
@@ -1816,7 +1831,6 @@ class Parser(metaclass=ParserMeta):
             # Get the next symbol on the input.  If a lookahead symbol
             # is already set, we just use that. Otherwise, we'll pull
             # the next token off of the lookaheadstack or from the lexer
-
             if self.state not in defaulted_states:
                 if not lookahead:
                     if not lookaheadstack:
@@ -1852,74 +1866,22 @@ class Parser(metaclass=ParserMeta):
                     self.production = p = prod[-t]
                     pname = p.name
                     plen  = p.len
+                    pslice._namemap = p.namemap
 
                     # Call the production function
-                    sym = YaccSymbol()
-                    sym.type = pname       # Production name
-                    sym.value = None
-
+                    pslice._slice = symstack[-plen:] if plen else []
                     if plen:
-                        targ = symstack[-plen-1:]
-                        targ[0] = sym
+                        del symstack[-plen:]
+                        del statestack[-plen:]
 
-                        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                        # The code enclosed in this section is duplicated
-                        # below as a performance optimization.  Make sure
-                        # changes get made in both locations.
+                    sym = YaccSymbol()
+                    sym.type = pname       
+                    sym.value = p.func(self, pslice)
+                    symstack.append(sym)
 
-                        pslice.slice = targ
-
-                        try:
-                            # Call the grammar rule with our special slice object
-                            del symstack[-plen:]
-                            p.func(self, pslice)
-                            del statestack[-plen:]
-                            symstack.append(sym)
-                            self.state = goto[statestack[-1]][pname]
-                            statestack.append(self.state)
-                        except SyntaxError:
-                            # If an error was set. Enter error recovery state
-                            lookaheadstack.append(lookahead)
-                            symstack.extend(targ[1:-1])
-                            statestack.pop()
-                            self.state = statestack[-1]
-                            sym.type = 'error'
-                            sym.value = 'error'
-                            lookahead = sym
-                            errorcount = ERROR_COUNT
-                            self.errorok = False
-                        continue
-                        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-                    else:
-
-                        targ = [sym]
-
-                        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                        # The code enclosed in this section is duplicated
-                        # above as a performance optimization.  Make sure
-                        # changes get made in both locations.
-
-                        pslice.slice = targ
-
-                        try:
-                            # Call the grammar rule with our special slice object
-                            p.func(self, pslice)
-                            symstack.append(sym)
-                            self.state = goto[statestack[-1]][pname]
-                            statestack.append(self.state)
-                        except SyntaxError:
-                            # If an error was set. Enter error recovery state
-                            lookaheadstack.append(lookahead)
-                            statestack.pop()
-                            self.state = statestack[-1]
-                            sym.type = 'error'
-                            sym.value = 'error'
-                            lookahead = sym
-                            errorcount = ERROR_COUNT
-                            self.errorok = False
-                        continue
-                        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                    self.state = goto[statestack[-1]][pname]
+                    statestack.append(self.state)
+                    continue
 
                 if t == 0:
                     n = symstack[-1]
