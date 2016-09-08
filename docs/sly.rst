@@ -251,7 +251,7 @@ To discard text, such as a comment, simply define a token rule that returns no v
         # No return value. Token discarded
 
 Alternatively, you can include the prefix ``ignore_`` in a token
-declaration to force a token to be ignored.  For example:
+declaration to force a token to be ignored.  For example::
 
     ignore_COMMENT = r'\#.*'
 
