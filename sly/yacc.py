@@ -105,8 +105,8 @@ class YaccSymbol:
 class YaccProduction:
     def __init__(self, s, stack=None):
         self._slice = s
-        self._stack = stack
         self._namemap = { }
+        self._stack = stack
 
     def __getitem__(self, n):
         if n >= 0:
@@ -115,19 +115,29 @@ class YaccProduction:
             return self._stack[n].value
 
     def __setitem__(self, n, v):
-        self._slice[n].value = v
+        if n >= 0:
+            self._slice[n].value = v
+        else:
+            self._stack[n].value = v
 
     def __len__(self):
         return len(self._slice)
 
-    def lineno(self, n):
-        return getattr(self._slice[n], 'lineno', 0)
+    @property
+    def lineno(self):
+        for tok in self._slice:
+            lineno = getattr(tok, 'lineno', None)
+            if lineno:
+                return lineno
+        raise AttributeError('No line number found')
 
-    def set_lineno(self, n, lineno):
-        self._slice[n].lineno = lineno
-
-    def index(self, n):
-        return getattr(self._slice[n], 'index', 0)
+    @property
+    def index(self):
+        for tok in self._slice:
+            index = getattr(tok, 'index', None)
+            if index:
+                return index
+        raise AttributeError('No index attribute found')
 
     def __getattr__(self, name):
         return self._slice[self._namemap[name]].value
@@ -1821,9 +1831,10 @@ class Parser(metaclass=ParserMeta):
         errorcount = 0                                    # Used during error recovery
 
         # Set up the state and symbol stacks
+        self.tokens = tokens
         self.statestack = statestack = []                 # Stack of parsing states
         self.symstack = symstack = []                     # Stack of grammar symbols
-        pslice.stack = symstack                           # Put in the production
+        pslice._stack = symstack                           # Associate the stack with the production
         self.restart()
 
         errtoken   = None                                 # Err token
@@ -1870,15 +1881,15 @@ class Parser(metaclass=ParserMeta):
 
                     # Call the production function
                     pslice._slice = symstack[-plen:] if plen else []
-                    if plen:
-                        del symstack[-plen:]
-                        del statestack[-plen:]
 
                     sym = YaccSymbol()
                     sym.type = pname       
                     sym.value = p.func(self, pslice)
-                    symstack.append(sym)
+                    if plen:
+                        del symstack[-plen:]
+                        del statestack[-plen:]
 
+                    symstack.append(sym)
                     self.state = goto[statestack[-1]][pname]
                     statestack.append(self.state)
                     continue
