@@ -177,7 +177,7 @@ expressions and store variables:
 Documentation
 =============
 
-Further documentation can be found in the docs directory.  
+Further documentation can be found at https://sly.readthedocs.io/en/latest
 
 Resources
 =========
