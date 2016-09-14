@@ -45,12 +45,12 @@ The next two parts describe the basics.
 Writing a Lexer
 ---------------
 
-Suppose you're writing a programming language and a user supplied the
+Suppose you're writing a programming language and you wanted to parse the
 following input string::
 
     x = 3 + 42 * (s - t)
 
-The first step of any parsing is to break the text into tokens where
+The first step of parsing is to break the text into tokens where
 each token has a type and value. For example, the above text might be
 described by the following list of token tuples::
 
@@ -195,36 +195,14 @@ comments and newlines::
     from sly import Lexer
 
     class CalcLexer(Lexer):
-        # Set of token names.   This is always required
-        tokens = {
-            'NUMBER',
-            'ID',
-            'PLUS',
-            'MINUS',
-            'TIMES',
-            'DIVIDE',
-            'ASSIGN',
-            'LPAREN',
-            'RPAREN',
-            }
-
+        ...
         # String containing ignored characters (between tokens)
         ignore = ' \t'
 
-        # Regular expression rules for tokens
-        PLUS    = r'\+'
-        MINUS   = r'-'
-        TIMES   = r'\*'
-        DIVIDE  = r'/'
-        LPAREN  = r'\('
-        RPAREN  = r'\)'
-        ASSIGN  = r'='
-        NUMBER  = r'\d+'
-        ID      = r'[a-zA-Z_][a-zA-Z0-9_]*'
-
-        # Ignored text
+        # Other ignored patterns
         ignore_comment = r'\#.*'
         ignore_newline = r'\n+'
+        ...
 
     if __name__ == '__main__':
         data = '''x = 3 + 42 
@@ -250,11 +228,24 @@ expression using the ``@_()`` decorator like this::
         return t
 
 The method always takes a single argument which is an instance of
-``Token``.  By default, ``t.type`` is set to the name of the token
+type ``Token``.  By default, ``t.type`` is set to the name of the token
 (e.g., ``'NUMBER'``).  The function can change the token type and
 value as it sees appropriate.  When finished, the resulting token
 object should be returned as a result. If no value is returned by the
 function, the token is discarded and the next token read.
+
+The ``@_()`` decorator is defined automatically within the ``Lexer``
+class--you don't need to do any kind of special import for it. 
+It can also accept multiple regular expression rules. For example::
+
+    @_(r'0x[0-9a-fA-F]+',
+       r'\d+')
+    def NUMBER(self, t):
+        if t.value.startswith('0x'):
+            t.value = int(t.value[2:], 16)
+        else:
+            t.value = int(t.value)
+        return t
 
 Instead of using the ``@_()`` decorator, you can also write a method
 that matches the same name as a token previously specified as a
@@ -269,8 +260,9 @@ string. For example::
         return t
 
 This is potentially useful trick for debugging a lexer.  You can temporarily
-attach a method to fire when a token is seen and take it away later without
-changing any existing part of the lexer class.
+attach a method a token and have it execute when the token is encountered.
+If you later take the method away, the lexer will revert back to its original
+behavior.
 
 Line numbers and position tracking
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -279,21 +271,21 @@ By default, lexers know nothing about line numbers.  This is because
 they don't know anything about what constitutes a "line" of input
 (e.g., the newline character or even if the input is textual data).
 To update this information, you need to add a special rule for newlines.
-Promote the ``ignore_newline`` token to a method like this::
+Promote the ``ignore_newline`` rule to a method like this::
 
     # Define a rule so we can track line numbers
     @_(r'\n+')
     def ignore_newline(self, t):
         self.lineno += len(t.value)
 
-Within the rule, the lineno attribute of the lexer is updated.  After
-the line number is updated, the token is simply discarded since
-nothing is returned.
+Within the rule, the lineno attribute of the lexer is now updated.
+After the line number is updated, the token is discarded since nothing
+is returned.
 
 Lexers do not perform and kind of automatic column tracking.  However,
-it does record positional information related to each token in the
+it does record positional information related to each token in the token's
 ``index`` attribute.  Using this, it is usually possible to compute
-column information as a separate step.  For instance, you could count
+column information as a separate step.  For instance, you can search
 backwards until you reach the previous newline::
 
     # Compute column. 
@@ -321,7 +313,7 @@ Literal characters can be specified by defining a set
          literals = { '+','-','*','/' }
          ...
 
-A literal character is simply a single character that is returned "as
+A literal character is a *single character* that is returned "as
 is" when encountered by the lexer.  Literals are checked after all of
 the defined regular expression rules.  Thus, if a rule starts with one
 of the literal characters, it will always take precedence.
@@ -369,7 +361,7 @@ For example::
             print("Illegal character '%s'" % value[0])
             self.index += 1
 
-In this case, we simply print the offending character and skip ahead
+In this case, we print the offending character and skip ahead
 one character by updating the lexer position.   Error handling in a
 parser is often a hard problem.  An error handler might scan ahead
 to a logical synchronization point such as a semicolon, a blank line,
@@ -386,7 +378,8 @@ into practice::
     from sly import Lexer
  
     class CalcLexer(Lexer):
-        reserved_words = { 'WHILE', 'PRINT' }
+        # Set of reserved names (language keywords)
+        reserved_words = { 'WHILE', 'IF', 'ELSE', 'PRINT' }
 
         # Set of token names.   This is always required
         tokens = {
@@ -431,6 +424,7 @@ into practice::
 
         @_(r'[a-zA-Z_][a-zA-Z0-9_]*')
         def ID(self, t):
+            # Check if name matches a reserved word (change token type if true)
             if t.value.upper() in self.reserved_words:
                 t.type = t.value.upper()
             return t
@@ -487,15 +481,15 @@ Study this example closely.  It might take a bit to digest, but all of the
 essential parts of writing a lexer are there. Tokens have to be specified
 with regular expression rules. You can optionally attach actions that
 execute when certain patterns are encountered.  Certain features such as
-character literals might make it easier to lex certain kinds of text.
-You can also add error handling.
+character literals are there mainly for convenience, saving you the trouble
+of writing separate regular expression rules. You can also add error handling.
 
 Writing a Parser
 ----------------
 
 The ``Parser`` class is used to parse language syntax.  Before showing
 an example, there are a few important bits of background that must be
-mentioned. 
+covered.
 
 Parsing Background
 ^^^^^^^^^^^^^^^^^^
@@ -519,15 +513,19 @@ In the grammar, symbols such as ``NUMBER``, ``+``, ``-``, ``*``, and
 ``/`` are known as *terminals* and correspond to raw input tokens.
 Identifiers such as ``term`` and ``factor`` refer to grammar rules
 comprised of a collection of terminals and other rules.  These
-identifiers are known as *non-terminals*.
+identifiers are known as *non-terminals*.  The separation of the
+grammar into different levels (e.g., ``expr`` and ``term``) encodes
+the operator precedence rules for the different operations. In this
+case, multiplication and division have higher precedence than addition
+and subtraction.
 
-The semantic behavior of a language is often specified using a
-technique known as syntax directed translation.  In syntax directed
-translation, values are attached to each symbol in a given grammar
-rule along with an action.  Whenever a particular grammar rule is
-recognized, the action describes what to do.  For example, given the
-expression grammar above, you might write the specification for a
-simple calculator like this::
+The semantics of what happens during parsing is often specified using
+a technique known as syntax directed translation.  In syntax directed
+translation, the symbols in the grammar become a kind of
+object. Values can be attached each symbol and operations carried out
+on those values when different grammar rules are recognized.  For
+example, given the expression grammar above, you might write the
+specification for the operation of a simple calculator like this::
 
     Grammar                   Action
     ------------------------  -------------------------------- 
@@ -542,12 +540,23 @@ simple calculator like this::
     factor  : NUMBER          factor.val = int(NUMBER.val)
             | ( expr )        factor.val = expr.val
 
-A good way to think about syntax directed translation is to view each
-symbol in the grammar as a kind of object. Associated with each symbol
-is a value representing its "state" (for example, the ``val``
-attribute above).  Semantic actions are then expressed as a collection
-of functions or methods that operate on the symbols and associated
-values.
+In this grammar, new values enter via the ``NUMBER`` token.  Those
+values then propagate according to the actions described above.  For
+example, ``factor.val = int(NUMBER.val)`` propagates the value from
+``NUMBER`` to ``factor``.  ``term0.val = factor.val`` propagates the
+value from ``factor`` to ``term``.  Rules such as ``expr0.val =
+expr1.val + term1.val`` combine and propagate values further. Just to 
+illustrate, here is how values propagate in the expression ``2 + 3 * 4``::
+
+     NUMBER.val=2 + NUMBER.val=3 * NUMBER.val=4    # NUMBER -> factor
+     factor.val=2 + NUMBER.val=3 * NUMBER.val=4    # factor -> term
+     term.val=2 + NUMBER.val=3 * NUMBER.val=4      # term -> expr
+     expr.val=2 + NUMBER.val=3 * NUMBER.val=4      # NUMBER -> factor
+     expr.val=2 + factor.val=3 * NUMBER.val=4      # factor -> term
+     expr.val=2 + term.val=3 * NUMBER.val=4        # NUMBER -> factor
+     expr.val=2 + term.val=3 * factor.val=4        # term * factor -> term
+     expr.val=2 + term.val=12                      # expr + term -> expr
+     expr.val=14                                   
 
 SLY uses a parsing technique known as LR-parsing or shift-reduce
 parsing.  LR parsing is a bottom up technique that tries to recognize
@@ -659,10 +668,6 @@ SLY::
         def factor(self, p):
             return p[1]
 
-        # Error rule for syntax errors
-        def error(self, p):
-            print("Syntax error in input!")
-
     if __name__ == '__main__':
         lexer = CalcLexer()
         parser = CalcParser()
@@ -677,10 +682,10 @@ SLY::
 
 In this example, each grammar rule is defined by a method that's been
 decorated by ``@_(rule)`` decorator.  The very first grammar rule
-defines the top of the parse.  The name of each method should match
-the name of the grammar rule being parsed.  The argument to the
-``@_()`` decorator is a string describing the right-hand-side of the
-grammar.  Thus, a grammar rule like this::
+defines the top of the parse (the first rule listed in a BNF grammar).
+The name of each method must match the name of the grammar rule being
+parsed.  The argument to the ``@_()`` decorator is a string describing
+the right-hand-side of the grammar.  Thus, a grammar rule like this::
 
     expr : expr PLUS term
 
@@ -692,7 +697,7 @@ becomes a method like this::
 
 The method is triggered when that grammar rule is recognized on the
 input.  As an argument, the method receives a sequence of grammar symbol
-values ``p`` that is accessed as an array.  The mapping between
+values ``p`` that is accessed as an array of symbols.  The mapping between
 elements of ``p`` and the grammar rule is as shown here::
 
     #   p[0] p[1] p[2]   
@@ -735,10 +740,8 @@ or perhaps create an instance related to an abstract syntax tree::
         return BinOp('+', p[0], p[2])
 
 The key thing is that the method returns the value that's going to
-be attached to the symbol "expr" in this case.
-
-The ``error()`` method is defined to handle syntax errors (if any).
-See the error handling section below for more detail.
+be attached to the symbol "expr" in this case.  This is the propagation
+of values that was described in the previous section.
 
 Combining Grammar Rule Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -789,12 +792,12 @@ declaration::
 
     class CalcLexer(Lexer):
         ...
-        literals = ['+','-','*','/' ]
+        literals = { '+','-','*','/' }
         ...
 
 Character literals are limited to a single character.  Thus, it is not
 legal to specify literals such as ``<=`` or ``==``.  For this, use the
-normal lexing rules (e.g., define a rule such as ``EQ = r'=='``).
+normal lexing rules (e.g., define a rule such as ``LE = r'<='``).
 
 Empty Productions
 ^^^^^^^^^^^^^^^^^
@@ -806,7 +809,19 @@ If you need an empty production, define a special rule like this::
         pass
 
 Now to use the empty production elsewhere, use the name 'empty' as a symbol.  For
-example::
+example, suppose you need to encode a rule that involved an optional item like this::
+
+    spam : optitem grok
+
+    optitem : item
+            | empty
+
+
+You would encode the rules in SLY as follows::
+
+    @_('optitem grok')
+    def spam(self, p):
+        ...
 
     @_('item')
     def optitem(self, p):
@@ -816,31 +831,10 @@ example::
     def optitem(self, p):
         ...
 
-Note: You can write empty rules anywhere by simply specifying an empty
+Note: You could write empty rules anywhere by specifying an empty
 string. However,writing an "empty" rule and using "empty" to denote an
 empty production may be easier to read and more clearly state your
 intention.
-
-Changing the starting symbol
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Normally, the first rule found in a parser class defines the starting
-grammar rule (top level rule).  To change this, supply a ``start``
-specifier in your class.  For example::
-
-    class CalcParser(Parser):
-        start = 'foo'
-
-        @_('A B')
-        def bar(self, p):
-            ...
-
-        @_('bar X')
-        def foo(self, p):     # Parsing starts here (start symbol above)
-            ...
-
-The use of a ``start`` specifier may be useful during debugging
-since you can use it to work with a subset of a larger grammar.
 
 Dealing With Ambiguous Grammars
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -870,14 +864,14 @@ not to reduce a rule or shift a symbol on the parsing stack.  For
 example, consider the string "3 * 4 + 5" and the internal parsing
 stack::
 
-    Step Symbol Stack           Input Tokens            Action
-    ---- ---------------------  ---------------------   -------------------------------
-    1    $                                3 * 4 + 5$    Shift 3
-    2    $ 3                                * 4 + 5$    Reduce : expr : NUMBER
-    3    $ expr                             * 4 + 5$    Shift *
-    4    $ expr *                             4 + 5$    Shift 4
-    5    $ expr * 4                             + 5$    Reduce: expr : NUMBER
-    6    $ expr * expr                          + 5$    SHIFT/REDUCE CONFLICT ????
+    Step Symbol Stack  Input Tokens       Action
+    ---- ------------- ----------------   -------------------------------
+    1    $                   3 * 4 + 5$   Shift 3
+    2    $ 3                   * 4 + 5$   Reduce : expr : NUMBER
+    3    $ expr                * 4 + 5$   Shift *
+    4    $ expr *                4 + 5$   Shift 4
+    5    $ expr * 4                + 5$   Reduce: expr : NUMBER
+    6    $ expr * expr             + 5$   SHIFT/REDUCE CONFLICT ????
 
 In this case, when the parser reaches step 6, it has two options.  One
 is to reduce the rule ``expr : expr * expr`` on the stack.  The other
@@ -929,12 +923,12 @@ associativity direction to each grammar rule. *This is always
 determined by looking at the precedence of the right-most terminal
 symbol.*  For example::
 
-    expr : expr PLUS expr                 # level = 1, left
-         | expr MINUS expr                # level = 1, left
-         | expr TIMES expr                # level = 2, left
-         | expr DIVIDE expr               # level = 2, left
-         | LPAREN expr RPAREN             # level = None (not specified)
-         | NUMBER                         # level = None (not specified)
+    expr : expr PLUS expr           # level = 1, left
+         | expr MINUS expr          # level = 1, left
+         | expr TIMES expr          # level = 2, left
+         | expr DIVIDE expr         # level = 2, left
+         | LPAREN expr RPAREN       # level = None (not specified)
+         | NUMBER                   # level = None (not specified)
 
 When shift/reduce conflicts are encountered, the parser generator
 resolves the conflict by looking at the precedence rules and
@@ -944,11 +938,12 @@ associativity specifiers.
 
 2. If the grammar rule on the stack has higher precedence, the rule is reduced.
 
-3. If the current token and the grammar rule have the same precedence, the
-rule is reduced for left associativity, whereas the token is shifted for right associativity.
+3. If the current token and the grammar rule have the same precedence,
+   the rule is reduced for left associativity, whereas the token is
+   shifted for right associativity.
 
-4. If nothing is known about the precedence, shift/reduce conflicts are resolved in
-favor of shifting (the default).
+4. If nothing is known about the precedence, shift/reduce conflicts
+   are resolved in favor of shifting (the default).
 
 For example, if ``expr PLUS expr`` has been parsed and the
 next token is ``TIMES``, the action is going to be a shift because
@@ -994,10 +989,11 @@ When you use the ``%prec`` qualifier, you're telling SLY
 that you want the precedence of the expression to be the same as for
 this special marker instead of the usual precedence.
 
-It is also possible to specify non-associativity in the ``precedence`` table. This would
-be used when you *don't* want operations to chain together.  For example, suppose
-you wanted to support comparison operators like ``<`` and ``>`` but you didn't want to allow
-combinations like ``a < b < c``.   To do this, specify a rule like this::
+It is also possible to specify non-associativity in the ``precedence``
+table. This is used when you *don't* want operations to chain
+together.  For example, suppose you wanted to support comparison
+operators like ``<`` and ``>`` but you didn't want combinations like
+``a < b < c``.  To do this, specify the precedence rules like this::
 
     class MyParser(Parser):
          ...
@@ -1140,8 +1136,9 @@ When a syntax error occurs, SLY performs the following steps:
 5. If a grammar rule accepts ``error`` as a token, it will be
    shifted onto the parsing stack.
 
-6. If the top item of the parsing stack is ``error``, lookahead tokens will be discarded until the
-parser can successfully shift a new symbol or reduce a rule involving ``error``.
+6. If the top item of the parsing stack is ``error``, lookahead tokens
+   will be discarded until the parser can successfully shift a new
+   symbol or reduce a rule involving ``error``.
 
 Recovery and resynchronization with error rules
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1181,7 +1178,9 @@ appear as the last token on the right in an error rule.  For example::
 
 This is because the first bad token encountered will cause the rule to
 be reduced--which may make it difficult to recover if more bad tokens
-immediately follow.   
+immediately follow.    It's better to have some kind of landmark such as
+a semicolon, closing parenthesese, or other token that can be used as
+a synchronization point.
 
 Panic mode recovery
 ~~~~~~~~~~~~~~~~~~~
@@ -1206,9 +1205,9 @@ state::
             tok = next(self.tokens, None)
             if not tok or tok.type == 'RBRACE': 
                 break
-            self.restart()
+        self.restart()
 
-This function simply discards the bad token and tells the parser that
+This function discards the bad token and tells the parser that
 the error was ok::
 
     def error(self, p):
@@ -1278,7 +1277,7 @@ Line Number and Position Tracking
 
 Position tracking is often a tricky problem when writing compilers.
 By default, SLY tracks the line number and position of all tokens.
-The following attributes may be useful in a production method:
+The following attributes may be useful in a production rule:
 
 - ``p.lineno``. Line number of the left-most terminal in a production.
 - ``p.index``. Lexing index of the left-most terminal in a production.
@@ -1301,9 +1300,9 @@ AST Construction
 SLY provides no special functions for constructing an abstract syntax
 tree.  However, such construction is easy enough to do on your own.
 
-A minimal way to construct a tree is to simply create and
+A minimal way to construct a tree is to create and
 propagate a tuple or list in each grammar rule function.   There
-are many possible ways to do this, but one example would be something
+are many possible ways to do this, but one example is something
 like this::
 
     @_('expr PLUS expr',
@@ -1356,6 +1355,27 @@ in each rule::
 The advantage to this approach is that it may make it easier to attach
 more complicated semantics, type checking, code generation, and other
 features to the node classes.
+
+Changing the starting symbol
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Normally, the first rule found in a parser class defines the starting
+grammar rule (top level rule).  To change this, supply a ``start``
+specifier in your class.  For example::
+
+    class CalcParser(Parser):
+        start = 'foo'
+
+        @_('A B')
+        def bar(self, p):
+            ...
+
+        @_('bar X')
+        def foo(self, p):     # Parsing starts here (start symbol above)
+            ...
+
+The use of a ``start`` specifier may be useful during debugging
+since you can use it to work with a subset of a larger grammar.
 
 Embedded Actions
 ^^^^^^^^^^^^^^^^
@@ -1454,9 +1474,3 @@ This might adjust internal symbol tables and other aspects of the
 parser.  Upon completion of the rule ``statements``, code
 undos the operations performed in the embedded action
 (e.g., ``pop_scope()``).
-
-
-
-
-
-
