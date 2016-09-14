@@ -126,6 +126,8 @@ class YaccProduction:
     @property
     def lineno(self):
         for tok in self._slice:
+            if isinstance(tok, YaccSymbol):
+                continue
             lineno = getattr(tok, 'lineno', None)
             if lineno:
                 return lineno
@@ -134,6 +136,8 @@ class YaccProduction:
     @property
     def index(self):
         for tok in self._slice:
+            if isinstance(tok, YaccSymbol):
+                continue
             index = getattr(tok, 'index', None)
             if index:
                 return index
@@ -1680,7 +1684,7 @@ class Parser(metaclass=ParserMeta):
         undefined_symbols = grammar.undefined_symbols()
         for sym, prod in undefined_symbols:
             cls.log.error('%s:%d: Symbol %r used, but not defined as a token or a rule', prod.file, prod.line, sym)
-            fai = True
+            fail = True
 
         unused_terminals = grammar.unused_terminals()
         for term in unused_terminals:

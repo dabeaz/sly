@@ -638,35 +638,35 @@ SLY::
         # Grammar rules and actions
         @_('expr PLUS term')
         def expr(self, p):
-            return p[0] + p[2]
+            return p.expr + p.term
 
         @_('expr MINUS term')
         def expr(self, p):
-            return p[0] - p[2]
+            return p.expr - p.term
 
         @_('term')
         def expr(self, p):
-            return p[0]
+            return p.term
 
         @_('term TIMES factor')
         def term(self, p):
-            return p[0] * p[2]
+            return p.term * p.factor
 
         @_('term DIVIDE factor')
         def term(self, p):
-            return p[0] / p[2]
+            return p.term / p.factor
 
         @_('factor')
         def term(self, p):
-            return p[0]
+            return p.factor
 
         @_('NUMBER')
         def factor(self, p):
-            return p[0]
+            return p.NUMBER
 
         @_('LPAREN expr RPAREN')
         def factor(self, p):
-            return p[1]
+            return p.expr
 
     if __name__ == '__main__':
         lexer = CalcLexer()
@@ -697,27 +697,35 @@ becomes a method like this::
 
 The method is triggered when that grammar rule is recognized on the
 input.  As an argument, the method receives a sequence of grammar symbol
-values ``p`` that is accessed as an array of symbols.  The mapping between
-elements of ``p`` and the grammar rule is as shown here::
+values in ``p``.  There are two ways to access these symbols. First, you
+can use symbol names as shown::
 
-    #   p[0] p[1] p[2]   
-    #    |    |    |
     @_('expr PLUS term')
     def expr(self, p):
-        ...
+        return p.expr + p.term
 
-For tokens, the value of the corresponding ``p[i]`` is the *same* as
-the ``p.value`` attribute assigned to tokens in the lexer module.  For
-non-terminals, the value is whatever was returned by the methods
-defined for that rule.
-
-Within each rule, you return a value that becomes associated with that
-grammar symbol elsewhere. In the example shown, rules are carrying out
-the evaluation of an arithmetic expression::
+Alternatively, you can also index ``p`` like an array::
 
     @_('expr PLUS term')
     def expr(self, p):
         return p[0] + p[2]
+
+For tokens, the value of the corresponding ``p.symbol`` or ``p[i]`` is
+the *same* as the ``p.value`` attribute assigned to tokens in the
+lexer module.  For non-terminals, the value is whatever was returned
+by the methods defined for that rule.
+
+If a grammar rule includes the same symbol name more than once, you
+need to append a numeric suffix to disambiguate the symbol name when
+you're accessing values.  For example::
+
+    @_('expr PLUS expr')
+    def expr(self, p):
+        return p.expr0 + p.expr1
+
+Finally, within each rule, you always return a value that becomes
+associated with that grammar symbol elsewhere. This is how values
+propagate within the grammar.
 
 There are many other kinds of things that might happen in a rule
 though. For example, a rule might construct part of a parse tree
@@ -725,9 +733,9 @@ instead::
 
     @_('expr PLUS term')
     def expr(self, p):
-        return ('+', p[0], p[2])
+        return ('+', p.expr, p.term)
 
-or perhaps create an instance related to an abstract syntax tree::
+or it might create an instance related to an abstract syntax tree::
 
     class BinOp(object):
         def __init__(self, op, left, right):
@@ -737,7 +745,7 @@ or perhaps create an instance related to an abstract syntax tree::
 
     @_('expr PLUS term')
     def expr(self, p):
-        return BinOp('+', p[0], p[2])
+        return BinOp('+', p.expr, p.term)
 
 The key thing is that the method returns the value that's going to
 be attached to the symbol "expr" in this case.  This is the propagation
@@ -751,25 +759,29 @@ For example, suppose you had two rules that were constructing a parse tree::
 
     @_('expr PLUS term')
     def expr(self, p):
-        return ('+', p[0], p[2])
+        return ('+', p.expr, p.term)
 
     @_('expr MINUS term')
     def expr(self, p):
-        return ('-', p[0], p[2])
+        return ('-', p.expr, p.term)
 
 Instead of writing two functions, you might write a single function like this::
 
     @_('expr PLUS term',
        'expr MINUS term')
     def expr(self, p):
-        return (p[1], p[0], p[2])
+        return (p[1], p.expr, p.term)
+
+In this example, the operator could be ``PLUS`` or ``MINUS``.  Thus,
+we can't use the symbolic name to refer to its value. Instead, use the array
+index ``p[1]`` to get it as shown.
 
 In general, the ``@_()`` decorator for any given method can list
 multiple grammar rules.  When combining grammar rules into a single
-function though, it is usually a good idea for all of the rules to
-have a similar structure (e.g., the same number of terms).  Otherwise,
-the corresponding action code may end up being more complicated than
-necessary.
+function though, all of the rules should have a similar structure
+(e.g., the same number of terms and consistent symbol names).
+Otherwise, the corresponding action code may end up being more
+complicated than necessary.
 
 Character Literals
 ^^^^^^^^^^^^^^^^^^
@@ -779,11 +791,11 @@ literals.  For example::
 
     @_('expr "+" term')
     def expr(self, p):
-        return p[0] + p[2]
+        return p.expr + p.term
 
     @_('expr "-" term')
     def expr(self, p):
-        return p[0] - p[2]
+        return p.expr - p.term
 
 A character literal must be enclosed in quotes such as ``"+"``.  In
 addition, if literals are used, they must be declared in the
@@ -898,16 +910,33 @@ like this::
            ('left', 'PLUS', 'MINUS'),
            ('left', 'TIMES', 'DIVIDE'),
         )
+
+        # Rules where precedence is applied
+	@_('expr PLUS expr')
+ 	def expr(self, p):
+            return p.expr0 + p.expr1
+
+	@_('expr MINUS expr')
+ 	def expr(self, p):
+            return p.expr0 - p.expr1
+
+	@_('expr TIMES expr')
+ 	def expr(self, p):
+            return p.expr0 * p.expr1
+
+	@_('expr DIVIDE expr')
+ 	def expr(self, p):
+            return p.expr0 / p.expr1
         ...
 
-This declaration specifies that ``PLUS``/``MINUS`` have the
-same precedence level and are left-associative and that
+This ``precedence`` declaration specifies that ``PLUS``/``MINUS`` have
+the same precedence level and are left-associative and that
 ``TIMES``/``DIVIDE`` have the same precedence and are
-left-associative.  Within the ``precedence`` declaration, tokens
-are ordered from lowest to highest precedence. Thus, this declaration
-specifies that ``TIMES``/``DIVIDE`` have higher precedence
-than ``PLUS``/``MINUS`` (since they appear later in the
-precedence specification).
+left-associative.  Within the ``precedence`` declaration, tokens are
+ordered from lowest to highest precedence. Thus, this declaration
+specifies that ``TIMES``/``DIVIDE`` have higher precedence than
+``PLUS``/``MINUS`` (since they appear later in the precedence
+specification).
 
 The precedence specification works by associating a numerical
 precedence level value and associativity direction to the listed
@@ -977,7 +1006,7 @@ Now, in the grammar file, you write the unary minus rule like this::
 
         @_('MINUS expr %prec UMINUS')
         def expr(p):
-           p[0] = -p[2]
+           return -p.expr
 
 In this case, ``%prec UMINUS`` overrides the default rule precedence--setting it to that
 of ``UMINUS`` in the precedence specifier.
@@ -1310,15 +1339,15 @@ like this::
        'expr TIMES expr',
        'expr DIVIDE expr')
     def expr(self, p):
-        return ('binary-expression', p[1], p[0], p[2])
+        return ('binary-expression', p[1], p.expr0, p.expr1)
 
     @_('LPAREN expr RPAREN')
     def expr(self, p):
-        return ('group-expression',p[1])
+        return ('group-expression',p.expr])
 
     @_('NUMBER')
     def expr(self, p):
-        return ('number-expression', p[0])
+        return ('number-expression', p.NUMBER)
 
 Another approach is to create a set of data structure for different
 kinds of abstract syntax tree nodes and create different node types
@@ -1342,15 +1371,15 @@ in each rule::
        'expr TIMES expr',
        'expr DIVIDE expr')
     def expr(self, p):
-        return BinOp(p[1], p[0], p[2])
+        return BinOp(p[1], p.expr0, p.expr1)
 
     @_('LPAREN expr RPAREN')
     def expr(self, p):
-        return p[1]
+        return p.expr
 
     @_('NUMBER')
     def expr(self, p):
-        return Number(p[0])
+        return Number(p.NUMBER)
 
 The advantage to this approach is that it may make it easier to attach
 more complicated semantics, type checking, code generation, and other
@@ -1385,7 +1414,7 @@ at the end of a rule.  For example, suppose you have a rule like this::
 
     @_('A B C D')
     def foo(self, p):
-        print("Parsed a foo", p[0],p[1],p[2],p[3])
+        print("Parsed a foo", p.A, p.B, p.C, p.D)
 
 In this case, the supplied action code only executes after all of the
 symbols ``A``, ``B``, ``C``, and ``D`` have been
@@ -1396,8 +1425,8 @@ been parsed. To do this, write an empty rule like this::
 
     @_('A seen_A B C D')
     def foo(self, p):
-        print("Parsed a foo", p[0],p[2],p[3],p[4])
-        print("seen_A returned", p[1])
+        print("Parsed a foo", p.A, p.B, p.C, p.D)
+        print("seen_A returned", p.seen_A])
 
     @_('')
     def seen_A(self, p):

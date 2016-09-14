@@ -1,4 +1,192 @@
-# SLY (Sly Lex Yacc)
+SLY (Sly Lex-Yacc)                   Version 0.0
 
-The name says it all.
+Copyright (C) 2016
+David M. Beazley (Dabeaz LLC)
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+* Redistributions of source code must retain the above copyright notice,
+  this list of conditions and the following disclaimer.  
+* Redistributions in binary form must reproduce the above copyright notice, 
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.  
+* Neither the name of the David Beazley or Dabeaz LLC may be used to
+  endorse or promote products derived from this software without
+  specific prior written permission. 
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Requirements
+============
+
+SLY requires the use of Python 3.5 or greater.  Older versions
+of Python are not supported.
+
+Introduction
+============
+
+SLY is a 100% Python implementation of the lex and yacc tools
+commonly used to write parsers and compilers.  Parsing is
+based on the same LALR(1) algorithm used by many yacc tools.
+Here are a few notable features:
+
+ -  SLY provides *very* extensive error reporting and diagnostic 
+    information to assist in parser construction.  The original
+    implementation was developed for instructional purposes.  As
+    a result, the system tries to identify the most common types
+    of errors made by novice users.  
+
+ -  SLY provides full support for empty productions, error recovery,
+    precedence specifiers, and moderately ambiguous grammars.
+
+ -  SLY uses various Python metaprogramming features to specify
+    lexers and parsers.  There are no generated files or extra
+    steps involved. You simply write Python code and run it.
+
+ -  SLY can be used to build parsers for "real" programming languages.
+    Although it is not ultra-fast due to its Python implementation,
+    SLY can be used to parse grammars consisting of several hundred
+    rules (as might be found for a language like C).  
+
+An Example
+==========
+
+SLY is probably best illustrated by an example.  Here's what it
+looks like to write a parser that can evaluate simple arithmetic
+expressions and store variables:
+
+    # -----------------------------------------------------------------------------
+    # calc.py
+    # -----------------------------------------------------------------------------
+
+    from sly import Lexer, Parser
+
+    class CalcLexer(Lexer):
+        tokens = {
+            'NAME', 'NUMBER',
+            }
+        ignore = ' \t'
+        literals = { '=', '+', '-', '*', '/', '(', ')' }
+
+        # Tokens
+        NAME = r'[a-zA-Z_][a-zA-Z0-9_]*'
+
+        @_(r'\d+')
+        def NUMBER(self, t):
+            t.value = int(t.value)
+            return t
+
+        @_(r'\n+')
+        def newline(self, t):
+            self.lineno += t.value.count('\n')
+
+        def error(self, value):
+            print("Illegal character '%s'" % value[0])
+            self.index += 1
+
+    class CalcParser(Parser):
+        tokens = CalcLexer.tokens
+
+        precedence = (
+            ('left', '+', '-'),
+            ('left', '*', '/'),
+            ('right', 'UMINUS'),
+            )
+
+        def __init__(self):
+            self.names = { }
+
+        @_('NAME "=" expr')
+        def statement(self, p):
+            self.names[p.NAME] = p.expr
+
+        @_('expr')
+        def statement(self, p):
+            print(p.expr)
+
+        @_('expr "+" expr')
+        def expr(self, p):
+            return p.expr0 + p.expr1
+
+        @_('expr "-" expr')
+        def expr(self, p):
+            return p.expr0 - p.expr1
+
+        @_('expr "*" expr')
+        def expr(self, p):
+            return p.expr0 * p.expr1
+
+        @_('expr "/" expr')
+        def expr(self, p):
+            return p.expr0 / p.expr1
+
+        @_('"-" expr %prec UMINUS')
+        def expr(self, p):
+            return -p.expr
+
+        @_('"(" expr ")"')
+        def expr(self, p):
+            return p.expr
+
+        @_('NUMBER')
+        def expr(self, p):
+            return p.NUMBER
+
+        @_('NAME')
+        def expr(self, p):
+            try:
+                return self.names[p.NAME]
+            except LookupError:
+                print("Undefined name '%s'" % p.NAME)
+                return 0
+
+    if __name__ == '__main__':
+        lexer = CalcLexer()
+        parser = CalcParser()
+        while True:
+            try:
+                text = input('calc > ')
+            except EOFError:
+                break
+            if text:
+                parser.parse(lexer.tokenize(text))
+
+Resources
+=========
+
+For a detailed overview of parsing theory, consult the excellent
+book "Compilers : Principles, Techniques, and Tools" by Aho, Sethi, and
+Ullman.  The topics found in "Lex & Yacc" by Levine, Mason, and Brown
+may also be useful.
+
+The GitHub page for SLY can be found at:
+
+     https://github.com/dabeaz/sly
+
+Please direct bug reports and pull requests to the GitHub page.
+To contact me directly, send email to dave@dabeaz.com or contact
+me on Twitter (@dabeaz).
+ 
+-- Dave
+
+
+
+
+
+
+
+
 

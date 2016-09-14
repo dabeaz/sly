@@ -8,14 +8,31 @@ sys.path.insert(0, "../..")
 from sly import Lexer, Parser
 
 class CalcLexer(Lexer):
-    tokens = (
-        'NAME', 'NUMBER',
-        )
-    ignore = ' \t'
-    literals = ['=', '+', '-', '*', '/', '(', ')']
+    # Set of token names.   This is always required
+    tokens = {
+        'ID',
+        'NUMBER',
+        'PLUS',
+        'MINUS',
+        'TIMES',
+        'DIVIDE',
+        'ASSIGN',
+        'LPAREN',
+        'RPAREN',
+        }
 
-    # Tokens
-    NAME = r'[a-zA-Z_][a-zA-Z0-9_]*'
+    # String containing ignored characters between tokens
+    ignore = ' \t'
+
+    # Regular expression rules for tokens
+    ID      = r'[a-zA-Z_][a-zA-Z0-9_]*'
+    PLUS    = r'\+'
+    MINUS   = r'-'
+    TIMES   = r'\*'
+    DIVIDE  = r'/'
+    ASSIGN  = r'='
+    LPAREN  = r'\('
+    RPAREN  = r'\)'
 
     @_(r'\d+')
     def NUMBER(self, t):
@@ -31,66 +48,50 @@ class CalcLexer(Lexer):
         self.index += 1
 
 class CalcParser(Parser):
+    # Get the token list from the lexer (required)
     tokens = CalcLexer.tokens
-    
-    precedence = (
-        ('left', '+', '-'),
-        ('left', '*', '/'),
-        ('right', 'UMINUS'),
-    )
 
-    def __init__(self):
-        self.names = { }
+    # Grammar rules and actions
+    @_('expr PLUS term')
+    def expr(self, p):
+        return p.expr + p.term
 
-    @_('NAME "=" expression')
-    def statement(self, p):
-        self.names[p.NAME] = p.expression
+    @_('expr MINUS term')
+    def expr(self, p):
+        return p.expr - p.term
 
-    @_('expression')
-    def statement(self, p):
-        print(p.expression)
+    @_('term')
+    def expr(self, p):
+        return p.term
 
-    @_('expression "+" expression',
-       'expression "-" expression',
-       'expression "*" expression',
-       'expression "/" expression')
-    def expression(self, p):
-        if p[1] == '+':
-            return p.expression0 + p.expression1
-        elif p[1] == '-':
-            return p.expression0 - p.expression1
-        elif p[1] == '*':
-            return p.expression0 * p.expression1
-        elif p[1] == '/':
-            return p.expression0 / p.expression1
+    @_('term TIMES factor1')
+    def term(self, p):
+        return p.term * p.factor
 
-    @_('"-" expression %prec UMINUS')
-    def expression(self, p):
-        return -p.expression
+    @_('term DIVIDE factor')
+    def term(self, p):
+        return p.term / p.factor
 
-    @_('"(" expression ")"')
-    def expression(self, p):
-        return p.expression
+    @_('factor')
+    def term(self, p):
+        return p.factor
 
     @_('NUMBER')
-    def expression(self, p):
+    def factor(self, p):
         return p.NUMBER
 
-    @_('NAME')
-    def expression(self, p):
-        try:
-            return self.names[p.NAME]
-        except LookupError:
-            print("Undefined name '%s'" % p.NAME)
-            return 0
+    @_('LPAREN expr RPAREN')
+    def factor(self, p):
+        return p.expr
 
 if __name__ == '__main__':
     lexer = CalcLexer()
     parser = CalcParser()
+
     while True:
         try:
             text = input('calc > ')
+            result = parser.parse(lexer.tokenize(text))
+            print(result)
         except EOFError:
             break
-        if text:
-            parser.parse(lexer.tokenize(text))
