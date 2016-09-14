@@ -61,6 +61,11 @@ Here are a few notable features:
     SLY can be used to parse grammars consisting of several hundred
     rules (as might be found for a language like C).  
 
+SLY originates from the PLY project (http://www.dabeaz.com/ply/index.html).
+However, it's been modernized a bit.  In fact, don't expect any code
+previously written for PLY to work. That said, most of the things 
+that were possible in PLY are also possible in SLY. 
+
 An Example
 ==========
 
@@ -163,6 +168,11 @@ expressions and store variables:
                 break
             if text:
                 parser.parse(lexer.tokenize(text))
+
+Documentation
+=============
+
+Further documentation can be found in the docs directory.  
 
 Resources
 =========
