@@ -1888,7 +1888,10 @@ class Parser(metaclass=ParserMeta):
 
                     sym = YaccSymbol()
                     sym.type = pname       
-                    sym.value = p.func(self, pslice)
+                    value = p.func(self, pslice)
+                    if value is pslice:
+                        value = (pname, *(s.value for s in pslice._slice))
+                    sym.value = value
                     if plen:
                         del symstack[-plen:]
                         del statestack[-plen:]
