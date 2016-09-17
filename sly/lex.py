@@ -66,7 +66,7 @@ class Token(object):
     '''
     __slots__ = ('type', 'value', 'lineno', 'index')
     def __repr__(self):
-        return 'Token(%s, %r, %d, %d)' % (self.type, self.value, self.lineno, self.index)
+        return 'Token(type=%r, value=%r, lineno=%d, index=%d)' % (self.type, self.value, self.lineno, self.index)
 
 class LexerMetaDict(OrderedDict):
     '''
