@@ -1390,8 +1390,13 @@ class LRTable(object):
                                         # Need to decide on shift or reduce here
                                         # By default we favor shifting. Need to add
                                         # some precedence rules here.
-                                        sprec, slevel = Productions[st_actionp[a].number].prec
-                                        rprec, rlevel = Precedence.get(a, ('right', 0))
+
+                                        # Shift precedence comes from the token
+                                        sprec, slevel = Precedence.get(a, ('right', 0))
+
+                                        # Reduce precedence comes from rule being reduced (p)
+                                        rprec, rlevel = Productions[p.number].prec
+
                                         if (slevel < rlevel) or ((slevel == rlevel) and (rprec == 'left')):
                                             # We really need to reduce here.
                                             st_action[a] = -p.number
