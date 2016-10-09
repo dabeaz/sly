@@ -74,10 +74,11 @@ class LexerMetaDict(OrderedDict):
     '''
     def __setitem__(self, key, value):
         if key in self and not isinstance(value, property):
-            if isinstance(self[key], str) and callable(value):
-                value.pattern = self[key]
-            else:
-                raise AttributeError('Name %s redefined' % (key))
+            if isinstance(self[key], str):
+                if callable(value):
+                    value.pattern = self[key]
+                else:
+                    raise AttributeError('Name %s redefined' % (key))
             
         super().__setitem__(key, value)
 
