@@ -64,7 +64,7 @@ class CalcParser(Parser):
     def expr(self, p):
         return p.term
 
-    @_('term TIMES factor1')
+    @_('term TIMES factor')
     def term(self, p):
         return p.term * p.factor
 

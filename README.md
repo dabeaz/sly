@@ -1,6 +1,6 @@
 SLY (Sly Lex-Yacc)                   Version 0.0
 
-Copyright (C) 2016
+Copyright (C) 2016-2017
 David M. Beazley (Dabeaz LLC)
 All rights reserved.
 
@@ -37,7 +37,7 @@ USE AT YOUR OWN RISK.
 Requirements
 ============
 
-SLY requires the use of Python 3.5 or greater.  Older versions
+SLY requires the use of Python 3.6 or greater.  Older versions
 of Python are not supported.
 
 Introduction

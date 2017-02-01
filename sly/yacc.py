@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------------
 # sly: yacc.py
 #
-# Copyright (C) 2016
+# Copyright (C) 2016-2017
 # David M. Beazley (Dabeaz LLC)
 # All rights reserved.
 #
@@ -224,7 +224,7 @@ class Production(object):
         if self.prod:
             s = '%s -> %s' % (self.name, ' '.join(self.prod))
         else:
-            s = '%s -> <empty>' % self.name
+            s = f'{self.name} -> <empty>'
 
         if self.prec[1]:
             s += '  [precedence=%s, level=%d]' % self.prec
@@ -232,7 +232,7 @@ class Production(object):
         return s
 
     def __repr__(self):
-        return 'Production(' + str(self) + ')'
+        return f'Production({self})'
 
     def __len__(self):
         return len(self.prod)
@@ -300,11 +300,11 @@ class LRItem(object):
         if self.prod:
             s = '%s -> %s' % (self.name, ' '.join(self.prod))
         else:
-            s = '%s -> <empty>' % self.name
+            s = f'{self.name} -> <empty>'
         return s
 
     def __repr__(self):
-        return 'LRItem(' + str(self) + ')'
+        return f'LRItem({self})'
 
 # -----------------------------------------------------------------------------
 # rightmost_terminal()
@@ -384,7 +384,7 @@ class Grammar(object):
     def set_precedence(self, term, assoc, level):
         assert self.Productions == [None], 'Must call set_precedence() before add_production()'
         if term in self.Precedence:
-            raise GrammarError('Precedence already specified for terminal %r' % term)
+            raise GrammarError(f'Precedence already specified for terminal {term!r}')
         if assoc not in ['left', 'right', 'nonassoc']:
             raise GrammarError("Associativity must be one of 'left','right', or 'nonassoc'")
         self.Precedence[term] = (assoc, level)
@@ -409,17 +409,16 @@ class Grammar(object):
     def add_production(self, prodname, syms, func=None, file='', line=0):
 
         if prodname in self.Terminals:
-            raise GrammarError('%s:%d: Illegal rule name %r. Already defined as a token' % (file, line, prodname))
+            raise GrammarError(f'{file}:{line}: Illegal rule name {prodname!r}. Already defined as a token')
         if prodname == 'error':
-            raise GrammarError('%s:%d: Illegal rule name %r. error is a reserved word' % (file, line, prodname))
+            raise GrammarError(f'{file}:{line}: Illegal rule name {prodname!r}. error is a reserved word')
 
         # Look for literal tokens
         for n, s in enumerate(syms):
             if s[0] in "'\"" and s[0] == s[-1]:
                 c = s[1:-1]
                 if (len(c) != 1):
-                    raise GrammarError('%s:%d: Literal token %s in rule %r may only be a single character' %
-                                       (file, line, s, prodname))
+                    raise GrammarError(f'{file}:{line}: Literal token {s} in rule {prodname!r} may only be a single character')
                 if c not in self.Terminals:
                     self.Terminals[c] = []
                 syms[n] = c
@@ -428,14 +427,13 @@ class Grammar(object):
         # Determine the precedence level
         if '%prec' in syms:
             if syms[-1] == '%prec':
-                raise GrammarError('%s:%d: Syntax error. Nothing follows %%prec' % (file, line))
+                raise GrammarError(f'{file}:{line}: Syntax error. Nothing follows %%prec')
             if syms[-2] != '%prec':
-                raise GrammarError('%s:%d: Syntax error. %%prec can only appear at the end of a grammar rule' %
-                                   (file, line))
+                raise GrammarError(f'{file}:{line}: Syntax error. %prec can only appear at the end of a grammar rule')
             precname = syms[-1]
             prodprec = self.Precedence.get(precname)
             if not prodprec:
-                raise GrammarError('%s:%d: Nothing known about the precedence of %r' % (file, line, precname))
+                raise GrammarError(f'{file}:{line}: Nothing known about the precedence of {precname!r}')
             else:
                 self.UsedPrecedence.add(precname)
             del syms[-2:]     # Drop %prec from the rule
@@ -448,8 +446,8 @@ class Grammar(object):
         map = '%s -> %s' % (prodname, syms)
         if map in self.Prodmap:
             m = self.Prodmap[map]
-            raise GrammarError('%s:%d: Duplicate rule %s. ' % (file, line, m) +
-                               'Previous definition at %s:%d' % (m.file, m.line))
+            raise GrammarError(f'{file}:{line}: Duplicate rule {m}. ' +
+                               f'Previous definition at {m.file}:{m.line}')
 
         # From this point on, everything is valid.  Create a new Production instance
         pnumber  = len(self.Productions)
@@ -488,7 +486,7 @@ class Grammar(object):
             start = self.Productions[1].name
 
         if start not in self.Nonterminals:
-            raise GrammarError('start symbol %s undefined' % start)
+            raise GrammarError(f'start symbol {start} undefined')
         self.Productions[0] = Production(0, "S'", [start])
         self.Nonterminals[start].append(0)
         self.Start = start
@@ -820,13 +818,13 @@ class Grammar(object):
         out = []
         out.append('Grammar:\n')
         for n, p in enumerate(self.Productions):
-            out.append('Rule %-5d %s' % (n, p))
+            out.append(f'Rule {n:<5d} {p}')
         
         unused_terminals = self.unused_terminals()
         if unused_terminals:
             out.append('\nUnused terminals:\n')
             for term in unused_terminals:
-                out.append('    %s' % term)
+                out.append(f'    {term}')
 
         out.append('\nTerminals, with rules where they appear:\n')
         for term in sorted(self.Terminals):
@@ -1368,9 +1366,9 @@ class LRTable(object):
             st_actionp = {}
             st_goto    = {}
 
-            descrip.append('\nstate %d\n' % st)
+            descrip.append(f'\nstate {st}\n')
             for p in I:
-                descrip.append('    (%d) %s' % (p.number, p))
+                descrip.append(f'    ({p.number}) {p}')
 
             for p in I:
                     if p.len == p.lr_index + 1:
@@ -1382,7 +1380,7 @@ class LRTable(object):
                             # We are at the end of a production.  Reduce!
                             laheads = p.lookaheads[st]
                             for a in laheads:
-                                actlist.append((a, p, 'reduce using rule %d (%s)' % (p.number, p)))
+                                actlist.append((a, p, f'reduce using rule {p.number} ({p})'))
                                 r = st_action.get(a)
                                 if r is not None:
                                     # Have a shift/reduce or reduce/reduce conflict
@@ -1402,7 +1400,7 @@ class LRTable(object):
                                             st_action[a] = -p.number
                                             st_actionp[a] = p
                                             if not slevel and not rlevel:
-                                                descrip.append('  ! shift/reduce conflict for %s resolved as reduce' % a)
+                                                descrip.append(f'  ! shift/reduce conflict for {a} resolved as reduce')
                                                 self.sr_conflicts.append((st, a, 'reduce'))
                                             Productions[p.number].reduced += 1
                                         elif (slevel == rlevel) and (rprec == 'nonassoc'):
@@ -1410,7 +1408,7 @@ class LRTable(object):
                                         else:
                                             # Hmmm. Guess we'll keep the shift
                                             if not rlevel:
-                                                descrip.append('  ! shift/reduce conflict for %s resolved as shift' % a)
+                                                descrip.append(f'  ! shift/reduce conflict for {a} resolved as shift')
                                                 self.sr_conflicts.append((st, a, 'shift'))
                                     elif r < 0:
                                         # Reduce/reduce conflict.   In this case, we favor the rule
@@ -1429,7 +1427,7 @@ class LRTable(object):
                                         descrip.append('  ! reduce/reduce conflict for %s resolved using rule %d (%s)' % 
                                                        (a, st_actionp[a].number, st_actionp[a]))
                                     else:
-                                        raise LALRError('Unknown conflict in state %d' % st)
+                                        raise LALRError(f'Unknown conflict in state {st}')
                                 else:
                                     st_action[a] = -p.number
                                     st_actionp[a] = p
@@ -1442,13 +1440,13 @@ class LRTable(object):
                             j = self.lr0_cidhash.get(id(g), -1)
                             if j >= 0:
                                 # We are in a shift state
-                                actlist.append((a, p, 'shift and go to state %d' % j))
+                                actlist.append((a, p, f'shift and go to state {j}'))
                                 r = st_action.get(a)
                                 if r is not None:
                                     # Whoa have a shift/reduce or shift/shift conflict
                                     if r > 0:
                                         if r != j:
-                                            raise LALRError('Shift/shift conflict in state %d' % st)
+                                            raise LALRError(f'Shift/shift conflict in state {st}')
                                     elif r < 0:
                                         # Do a precedence check.
                                         #   -  if precedence of reduce rule is higher, we reduce.
@@ -1462,18 +1460,18 @@ class LRTable(object):
                                             st_action[a] = j
                                             st_actionp[a] = p
                                             if not rlevel:
-                                                descrip.append('  ! shift/reduce conflict for %s resolved as shift' % a)
+                                                descrip.append(f'  ! shift/reduce conflict for {a} resolved as shift')
                                                 self.sr_conflicts.append((st, a, 'shift'))
                                         elif (slevel == rlevel) and (rprec == 'nonassoc'):
                                             st_action[a] = None
                                         else:
                                             # Hmmm. Guess we'll keep the reduce
                                             if not slevel and not rlevel:
-                                                descrip.append('  ! shift/reduce conflict for %s resolved as reduce' % a)
+                                                descrip.append(f'  ! shift/reduce conflict for {a} resolved as reduce')
                                                 self.sr_conflicts.append((st, a, 'reduce'))
 
                                     else:
-                                        raise LALRError('Unknown conflict in state %d' % st)
+                                        raise LALRError(f'Unknown conflict in state {st}')
                                 else:
                                     st_action[a] = j
                                     st_actionp[a] = p
@@ -1483,7 +1481,7 @@ class LRTable(object):
             for a, p, m in actlist:
                 if a in st_action:
                     if p is st_actionp[a]:
-                        descrip.append('    %-15s %s' % (a, m))
+                        descrip.append(f'    {a:<15s} {m}')
                         _actprint[(a, m)] = 1
             descrip.append('')
 
@@ -1498,7 +1496,7 @@ class LRTable(object):
                 j = self.lr0_cidhash.get(id(g), -1)
                 if j >= 0:
                     st_goto[n] = j
-                    descrip.append('    %-30s shift and go to state %d' % (n, j))
+                    descrip.append(f'    {n:<30s} shift and go to state {j}')
 
             action[st] = st_action
             actionp[st] = st_actionp
@@ -1518,20 +1516,20 @@ class LRTable(object):
             out.append('\nConflicts:\n')
 
             for state, tok, resolution in self.sr_conflicts:
-                out.append('shift/reduce conflict for %s in state %d resolved as %s' % (tok, state, resolution))
+                out.append(f'shift/reduce conflict for {tok} in state {state} resolved as {resolution}')
 
             already_reported = set()
             for state, rule, rejected in self.rr_conflicts:
                 if (state, id(rule), id(rejected)) in already_reported:
                     continue
-                out.append('reduce/reduce conflict in state %d resolved using rule (%s)' % (state, rule))
-                out.append('rejected rule (%s) in state %d' % (rejected, state))
+                out.append(f'reduce/reduce conflict in state {state} resolved using rule {rule}')
+                out.append(f'rejected rule ({rejected}) in state {state}')
                 already_reported.add((state, id(rule), id(rejected)))
 
             warned_never = set()
             for state, rule, rejected in self.rr_conflicts:
                 if not rejected.reduced and (rejected not in warned_never):
-                    out.append('Rule (%s) is never reduced' % rejected)
+                    out.append(f'Rule ({rejected}) is never reduced')
                     warned_never.add(rejected)
 
         return '\n'.join(out)
@@ -1618,11 +1616,11 @@ class Parser(metaclass=ParserMeta):
 
         for level, p in enumerate(cls.precedence, start=1):
             if not isinstance(p, (list, tuple)):
-                cls.log.error('Bad precedence table entry %r. Must be a list or tuple', p)
+                cls.log.error(f'Bad precedence table entry {p!r}. Must be a list or tuple')
                 return False
 
             if len(p) < 2:
-                cls.log.error('Malformed precedence entry %s. Must be (assoc, term, ..., term)', p)
+                cls.log.error(f'Malformed precedence entry {p!r}. Must be (assoc, term, ..., term)')
                 return False
 
             if not all(isinstance(term, str) for term in p):
@@ -1688,7 +1686,7 @@ class Parser(metaclass=ParserMeta):
 
         undefined_symbols = grammar.undefined_symbols()
         for sym, prod in undefined_symbols:
-            cls.log.error('%s:%d: Symbol %r used, but not defined as a token or a rule', prod.file, prod.line, sym)
+            cls.log.error(f'%s:%d: Symbol %r used, but not defined as a token or a rule', prod.file, prod.line, sym)
             fail = True
 
         unused_terminals = grammar.unused_terminals()
@@ -1802,9 +1800,9 @@ class Parser(metaclass=ParserMeta):
         if token:
             lineno = getattr(token, 'lineno', 0)
             if lineno:
-                sys.stderr.write('yacc: Syntax error at line %d, token=%s\n' % (lineno, token.type))
+                sys.stderr.write(f'yacc: Syntax error at line {lineno}, token={token.type}\n')
             else:
-                sys.stderr.write('yacc: Syntax error, token=%s' % token.type)
+                sys.stderr.write(f'yacc: Syntax error, token={token.type}')
         else:
             sys.stderr.write('yacc: Parse error in input. EOF\n')
  

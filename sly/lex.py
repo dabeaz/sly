@@ -66,7 +66,7 @@ class Token(object):
     '''
     __slots__ = ('type', 'value', 'lineno', 'index')
     def __repr__(self):
-        return 'Token(type=%r, value=%r, lineno=%d, index=%d)' % (self.type, self.value, self.lineno, self.index)
+        return f'Token(type={self.type!r}, value={self.value!r}, lineno={self.lineno}, index={self.index}'
 
 class LexerMetaDict(OrderedDict):
     '''
@@ -78,7 +78,7 @@ class LexerMetaDict(OrderedDict):
                 if callable(value):
                     value.pattern = self[key]
                 else:
-                    raise AttributeError('Name %s redefined' % (key))
+                    raise AttributeError(f'Name {key} redefined')
             
         super().__setitem__(key, value)
 
@@ -92,7 +92,7 @@ class LexerMeta(type):
         def _(pattern, *extra):
             patterns = [pattern, *extra]
             def decorate(func):
-                pattern = '|'.join('(%s)' % pat for pat in patterns )
+                pattern = '|'.join(f'({pat})' for pat in patterns )
                 if hasattr(func, 'pattern'):
                     func.pattern = pattern + '|' + func.pattern
                 else:
@@ -140,7 +140,7 @@ class Lexer(metaclass=LexerMeta):
         Validate the rules to make sure they look sane.
         '''
         if 'tokens' not in vars(cls):
-            raise LexerBuildError('%s class does not define a tokens attribute' % cls.__qualname__)
+            raise LexerBuildError(f'{cls.__qualname__} class does not define a tokens attribute')
 
         cls._token_names = cls._token_names | set(cls.tokens)
         cls._literals = cls._literals | set(cls.literals)
@@ -161,17 +161,17 @@ class Lexer(metaclass=LexerMeta):
                 cls._token_funcs[tokname] = value
 
             # Form the regular expression component 
-            part = '(?P<%s>%s)' % (tokname, pattern)
+            part = f'(?P<{tokname}>{pattern})'
 
             # Make sure the individual regex compiles properly
             try:
                 cpat = re.compile(part, cls.reflags)
             except Exception as e:
-                raise PatternError('Invalid regex for token %s' % tokname) from e
+                raise PatternError(f'Invalid regex for token {tokname}') from e
 
             # Verify that the pattern doesn't match the empty string
             if cpat.match(''):
-                raise PatternError('Regex for token %s matches empty input' % tokname)
+                raise PatternError(f'Regex for token {tokname} matches empty input')
 
             parts.append(part)
 
@@ -187,7 +187,7 @@ class Lexer(metaclass=LexerMeta):
             raise LexerBuildError('ignore specifier must be a string')
         
         if not all(isinstance(lit, str) for lit in cls.literals):
-            raise LexerBuildError("literals must be specified as strings")
+            raise LexerBuildError('literals must be specified as strings')
 
     def tokenize(self, text, lineno=1, index=0):
         # Local copies of frequently used values
@@ -252,4 +252,4 @@ class Lexer(metaclass=LexerMeta):
 
     # Default implementations of the error handler. May be changed in subclasses
     def error(self, value):
-        raise LexError("Illegal character %r at index %d" % (value[0], self.index), value)
+        raise LexError(f'Illegal character {value[0]!r} at index {self.index}', value)
