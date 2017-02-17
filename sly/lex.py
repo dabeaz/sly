@@ -41,11 +41,13 @@ class LexError(Exception):
     '''
     Exception raised if an invalid character is encountered and no default
     error handler function is defined.  The .text attribute of the exception
-    contains all remaining untokenized text.
+    contains all remaining untokenized text. The .error_index is the index
+    location of the error.
     '''
-    def __init__(self, message, text):
+    def __init__(self, message, text, error_index):
         self.args = (message,)
         self.text = text
+        self.error_index = error_index
 
 class PatternError(Exception):
     '''
@@ -79,7 +81,7 @@ class LexerMetaDict(OrderedDict):
                     value.pattern = self[key]
                 else:
                     raise AttributeError(f'Name {key} redefined')
-            
+
         super().__setitem__(key, value)
 
 class LexerMeta(type):
@@ -160,7 +162,7 @@ class Lexer(metaclass=LexerMeta):
                 pattern = value.pattern
                 cls._token_funcs[tokname] = value
 
-            # Form the regular expression component 
+            # Form the regular expression component
             part = f'(?P<{tokname}>{pattern})'
 
             # Make sure the individual regex compiles properly
@@ -185,7 +187,7 @@ class Lexer(metaclass=LexerMeta):
         # Verify that that ignore and literals specifiers match the input type
         if not isinstance(cls.ignore, str):
             raise LexerBuildError('ignore specifier must be a string')
-        
+
         if not all(isinstance(lit, str) for lit in cls.literals):
             raise LexerBuildError('literals must be specified as strings')
 
@@ -252,4 +254,4 @@ class Lexer(metaclass=LexerMeta):
 
     # Default implementations of the error handler. May be changed in subclasses
     def error(self, value):
-        raise LexError(f'Illegal character {value[0]!r} at index {self.index}', value)
+        raise LexError(f'Illegal character {value[0]!r} at index {self.index}', value, self.index)
