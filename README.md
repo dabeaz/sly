@@ -1,4 +1,4 @@
-SLY (Sly Lex-Yacc)                   Version 0.0
+SLY (Sly Lex-Yacc)                   Version 0.1
 
 Copyright (C) 2016-2017
 David M. Beazley (Dabeaz LLC)

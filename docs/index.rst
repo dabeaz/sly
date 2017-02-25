@@ -12,7 +12,7 @@ USE AT YOUR OWN RISK.
 Requirements
 ============
 
-SLY requires the use of Python 3.5 or greater.  Older versions
+SLY requires the use of Python 3.6 or greater.  Older versions
 of Python are not supported.
 
 Overview

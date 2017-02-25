@@ -6,7 +6,7 @@ Given the intrinsic complexity of parsing, I would strongly advise
 that you read (or at least skim) this entire document before jumping
 into a big development project with SLY.  
 
-SLY requires Python 3.5 or newer.  If you're using an older version,
+SLY requires Python 3.6 or newer.  If you're using an older version,
 you're out of luck. Sorry.
 
 Introduction
