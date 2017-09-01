@@ -32,7 +32,7 @@
 # -----------------------------------------------------------------------------
 
 __version__    = '0.1'
-__all__ = ['Lexer']
+__all__ = ['Lexer', 'LexerStateChange']
 
 import re
 from collections import OrderedDict
@@ -61,6 +61,14 @@ class LexerBuildError(Exception):
     Exception raised if there's some sort of problem building the lexer.
     '''
     pass
+
+class LexerStateChange(Exception):
+    '''
+    Exception raised to force a lexing state change
+    '''
+    def __init__(self, newstate, tok=None):
+        self.newstate = newstate
+        self.tok = tok
 
 class Token(object):
     '''
@@ -192,65 +200,71 @@ class Lexer(metaclass=LexerMeta):
             raise LexerBuildError('literals must be specified as strings')
 
     def tokenize(self, text, lineno=1, index=0):
-        # Local copies of frequently used values
-        _ignored_tokens = self._ignored_tokens
-        _master_re = self._master_re
-        _ignore = self.ignore
-        _token_funcs = self._token_funcs
-        _literals = self._literals
+        while True:
+            # Local copies of frequently used values
+            _ignored_tokens = self._ignored_tokens
+            _master_re = self._master_re
+            _ignore = self.ignore
+            _token_funcs = self._token_funcs
+            _literals = self._literals
 
-        self.text = text
-        try:
-            while True:
-                try:
-                    if text[index] in _ignore:
-                        index += 1
-                        continue
-                except IndexError:
-                    break
+            self.text = text
+            try:
+                while True:
+                    try:
+                        if text[index] in _ignore:
+                            index += 1
+                            continue
+                    except IndexError:
+                        return
 
-                tok = Token()
-                tok.lineno = lineno
-                tok.index = index
-                m = _master_re.match(text, index)
-                if m:
-                    index = m.end()
-                    tok.value = m.group()
-                    tok.type = m.lastgroup
-                    if tok.type in _token_funcs:
-                        self.index = index
-                        self.lineno = lineno
-                        tok = _token_funcs[tok.type](self, tok)
-                        index = self.index
-                        lineno = self.lineno
-                        if not tok:
+                    tok = Token()
+                    tok.lineno = lineno
+                    tok.index = index
+                    m = _master_re.match(text, index)
+                    if m:
+                        index = m.end()
+                        tok.value = m.group()
+                        tok.type = m.lastgroup
+                        if tok.type in _token_funcs:
+                            self.index = index
+                            self.lineno = lineno
+                            tok = _token_funcs[tok.type](self, tok)
+                            index = self.index
+                            lineno = self.lineno
+                            if not tok:
+                                continue
+
+                        if tok.type in _ignored_tokens:
                             continue
 
-                    if tok.type in _ignored_tokens:
-                        continue
-
-                    yield tok
-
-                else:
-                    # No match, see if the character is in literals
-                    if text[index] in _literals:
-                        tok.value = text[index]
-                        tok.type = tok.value
-                        index += 1
                         yield tok
-                    else:
-                        # A lexing error
-                        self.index = index
-                        self.lineno = lineno
-                        self.error(text[index:])
-                        index = self.index
-                        lineno = self.lineno
 
-        # Set the final state of the lexer before exiting (even if exception)
-        finally:
-            self.text = text
-            self.index = index
-            self.lineno = lineno
+                    else:
+                        # No match, see if the character is in literals
+                        if text[index] in _literals:
+                            tok.value = text[index]
+                            tok.type = tok.value
+                            index += 1
+                            yield tok
+                        else:
+                            # A lexing error
+                            self.index = index
+                            self.lineno = lineno
+                            self.error(text[index:])
+                            index = self.index
+                            lineno = self.lineno
+
+            except LexerStateChange as e:
+                self.__class__ = e.newstate
+                if e.tok:
+                    yield e.tok
+
+            # Set the final state of the lexer before exiting (even if exception)
+            finally:
+                self.text = text
+                self.index = index
+                self.lineno = lineno
 
     # Default implementations of the error handler. May be changed in subclasses
     def error(self, value):
