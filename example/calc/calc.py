@@ -43,8 +43,8 @@ class CalcLexer(Lexer):
     def newline(self, t):
         self.lineno += t.value.count('\n')
 
-    def error(self, value):
-        print("Illegal character '%s'" % value[0])
+    def error(self, t):
+        print("Illegal character '%s'" % t.value[0])
         self.index += 1
 
 class CalcParser(Parser):

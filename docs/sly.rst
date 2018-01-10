@@ -350,15 +350,15 @@ Error handling
 If a bad character is encountered while lexing, tokenizing will stop.
 However, you can add an ``error()`` method to handle lexing errors
 that occur when illegal characters are detected.  The error method
-receives a string containing all remaining untokenized text.  A
-typical handler might look at this text and skip ahead in some manner.
-For example::
+receives a ``Token`` where the ``value`` attribute contains all
+remaining untokenized text.  A typical handler might look at this text
+and skip ahead in some manner.  For example::
 
     class MyLexer(Lexer):
         ...
         # Error handling rule
-        def error(self, value):
-            print("Illegal character '%s'" % value[0])
+        def error(self, t):
+            print("Illegal character '%s'" % t.value[0])
             self.index += 1
 
 In this case, we print the offending character and skip ahead
@@ -366,6 +366,13 @@ one character by updating the lexer position.   Error handling in a
 parser is often a hard problem.  An error handler might scan ahead
 to a logical synchronization point such as a semicolon, a blank line,
 or similar landmark.
+
+If the ``error()`` method also returns the passed token, it will
+show up as an ``ERROR`` token in the resulting token stream. This
+might be useful if the parser wants to see error tokens for some
+reason--perhaps for the purposes of improved error messages or
+some other kind of error handling.
+
 
 A More Complete Example
 ^^^^^^^^^^^^^^^^^^^^^^^

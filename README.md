@@ -1,4 +1,4 @@
-SLY (Sly Lex-Yacc)                   Version 0.1
+SLY (Sly Lex-Yacc)                   Version 0.2
 
 Copyright (C) 2016-2017
 David M. Beazley (Dabeaz LLC)
@@ -103,8 +103,8 @@ expressions and store variables:
         def newline(self, t):
             self.lineno += t.value.count('\n')
 
-        def error(self, value):
-            print("Illegal character '%s'" % value[0])
+        def error(self, t):
+            print("Illegal character '%s'" % t.value[0])
             self.index += 1
 
     class CalcParser(Parser):

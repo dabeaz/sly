@@ -1,0 +1,8 @@
+Version 0.2
+-----------
+
+12/24/2017 The error(self, t) method of lexer objects now receives a
+           token as input.  The value attribute of this token contains
+           all remaining input text.  If the passed token is returned
+           by error(), then it shows up in the token stream where
+           can be processed by the parser.

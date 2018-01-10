@@ -47,9 +47,11 @@ class CalcLexer(Lexer):
         t.value = t.value.upper()
         return t
 
-    def error(self, value):
-        self.errors.append(value)
+    def error(self, t):
+        self.errors.append(t.value)
         self.index += 1
+        if hasattr(self, 'return_error'):
+            return t
 
     def __init__(self):
         self.errors = []
@@ -83,6 +85,17 @@ def test_error():
     vals = [t.value for t in toks]
     assert types == ['NUMBER', 'PLUS', 'MINUS']
     assert vals == [123, '+', '-']
+    assert lexer.errors == [ ':+-' ]
+
+# Test error token return handling
+def test_error_return():
+    lexer = CalcLexer()
+    lexer.return_error = True
+    toks = list(lexer.tokenize('123 :+-'))
+    types = [t.type for t in toks]
+    vals = [t.value for t in toks]
+    assert types == ['NUMBER', 'ERROR', 'PLUS', 'MINUS']
+    assert vals == [123, ':+-', '+', '-']
     assert lexer.errors == [ ':+-' ]
 
     

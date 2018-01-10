@@ -31,7 +31,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # -----------------------------------------------------------------------------
 
-__version__    = '0.1'
+__version__    = '0.2'
 __all__ = ['Lexer', 'LexerStateChange']
 
 import re
@@ -251,7 +251,12 @@ class Lexer(metaclass=LexerMeta):
                             # A lexing error
                             self.index = index
                             self.lineno = lineno
-                            self.error(text[index:])
+                            tok.type = 'ERROR'
+                            tok.value = text[index:]
+                            tok = self.error(tok)
+                            if tok is not None:
+                                yield tok
+
                             index = self.index
                             lineno = self.lineno
 
@@ -267,5 +272,5 @@ class Lexer(metaclass=LexerMeta):
                 self.lineno = lineno
 
     # Default implementations of the error handler. May be changed in subclasses
-    def error(self, value):
-        raise LexError(f'Illegal character {value[0]!r} at index {self.index}', value, self.index)
+    def error(self, t):
+        raise LexError(f'Illegal character {t.value[0]!r} at index {self.index}', value, self.index)
