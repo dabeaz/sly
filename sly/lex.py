@@ -273,4 +273,4 @@ class Lexer(metaclass=LexerMeta):
 
     # Default implementations of the error handler. May be changed in subclasses
     def error(self, t):
-        raise LexError(f'Illegal character {t.value[0]!r} at index {self.index}', value, self.index)
+        raise LexError(f'Illegal character {t.value[0]!r} at index {self.index}', t.value, self.index)
