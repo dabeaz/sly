@@ -1,3 +1,9 @@
+Version 0.3
+-----------
+1/16/2018  Usability improvement on Lexer class.  Regular expression rules
+           specified as strings that don't match any name in tokens are
+           now reported as errors.
+
 Version 0.2
 -----------
 

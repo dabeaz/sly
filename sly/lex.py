@@ -141,6 +141,8 @@ class Lexer(metaclass=LexerMeta):
         for key, value in definitions:
             if (key in cls.tokens) or key.startswith('ignore_') or hasattr(value, 'pattern'):
                 rules.append((key, value))
+            elif isinstance(value, str) and not key.startswith('_') and key not in {'ignore'}:
+                raise LexerBuildError(f'{key} does not match a name in tokens')
         return rules
 
     @classmethod
