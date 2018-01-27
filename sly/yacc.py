@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------------
 # sly: yacc.py
 #
-# Copyright (C) 2016-2017
+# Copyright (C) 2016-2018
 # David M. Beazley (Dabeaz LLC)
 # All rights reserved.
 #
@@ -35,7 +35,7 @@ import sys
 import inspect
 from collections import OrderedDict, defaultdict
 
-__version__    = '0.2'
+__version__    = '0.3'
 __all__        = [ 'Parser' ]
 
 class YaccError(Exception):
@@ -55,12 +55,12 @@ ERROR_COUNT = 3                # Number of symbols that must be shifted to leave
 MAXINT = sys.maxsize
 
 # This object is a stand-in for a logging object created by the
-# logging module.   PLY will use this by default to create things
+# logging module.   SLY will use this by default to create things
 # such as the parser.out file.  If a user wants more detailed
 # information, they can create their own logging object and pass
-# it into PLY.
+# it into SLY.
 
-class PlyLogger(object):
+class SlyLogger(object):
     def __init__(self, f):
         self.f = f
 
@@ -1552,7 +1552,7 @@ def _collect_grammar_rules(func):
 
     return grammar
 
-class ParserMetaDict(OrderedDict):
+class ParserMetaDict(dict):
     '''
     Dictionary that allows decorated grammar rule functions to be overloaded
     '''
@@ -1560,6 +1560,12 @@ class ParserMetaDict(OrderedDict):
         if key in self and callable(value) and hasattr(value, 'rules'):
             value.next_func = self[key]
         super().__setitem__(key, value)
+    
+    def __getitem__(self, key):
+        if key not in self and key.isupper() and key[:1] != '_':
+            return key.upper()
+        else:
+            return super().__getitem__(key)
 
 class ParserMeta(type):
     @classmethod
@@ -1582,7 +1588,7 @@ class ParserMeta(type):
 
 class Parser(metaclass=ParserMeta):
     # Logging object where debugging/diagnostic messages are sent
-    log = PlyLogger(sys.stderr)     
+    log = SlyLogger(sys.stderr)     
 
     # Debugging filename where parsetab.out data can be written
     debugfile = None

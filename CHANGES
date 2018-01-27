@@ -1,5 +1,64 @@
 Version 0.3
 -----------
+1/27/2018  Tokens no longer have to be specified as strings.   For example, you
+           can now write:
+
+           from sly import Lexer
+
+           class TheLexer(Lexer):
+               tokens = { ID, NUMBER, PLUS, MINUS }
+
+               ID = r'[a-zA-Z_][a-zA-Z0-9_]*'
+               NUMBER = r'\d+'
+               PLUS = r'\+'
+               MINUS = r'-'
+
+           This convention also carries over to the parser for things such
+           as precedence specifiers:
+
+           from sly import Parser
+           class TheParser(Parser):
+                 tokens = TheLexer.tokens
+
+                 precedence = (
+                     ('left', PLUS, MINUS),
+                     ('left', TIMES, DIVIDE),
+                     ('right', UMINUS),
+                  )
+            ...
+
+           Nevermind the fact that ID, NUMBER, PLUS, and MINUS appear to be
+           undefined identifiers.  It all works. 
+
+1/27/2018  Tokens now allow special-case remapping.   For example:
+
+           from sly import Lexer
+
+           class TheLexer(Lexer):
+               tokens = { ID, IF, ELSE, WHILE, NUMBER, PLUS, MINUS }
+
+               ID = r'[a-zA-Z_][a-zA-Z0-9_]*'
+               ID['if'] = IF
+               ID['else'] = ELSE
+               ID['while'] = WHILE
+
+               NUMBER = r'\d+'
+               PLUS = r'\+'
+               MINUS = r'-'
+       
+           In this code, the ID rule matches any identifier.  However,
+           special cases have been made for IF, ELSE, and WHILE tokens.
+           Previously, this had to be handled in a special action method 
+           such as this:
+
+               def ID(self, t):
+                   if t.value in { 'if', 'else', 'while' }:
+                       t.type = t.value.upper()
+                   return t
+
+           Nevermind the fact that the syntax appears to suggest that strings
+           work as a kind of mutable mapping.
+      
 1/16/2018  Usability improvement on Lexer class.  Regular expression rules
            specified as strings that don't match any name in tokens are
            now reported as errors.

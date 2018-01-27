@@ -9,28 +9,16 @@ from sly import Lexer, Parser
 
 class CalcLexer(Lexer):
     # Set of token names.   This is always required
-    tokens = {
-        'ID',
-        'NUMBER',
-        'PLUS',
-        'MINUS',
-        'TIMES',
-        'DIVIDE',
-        'ASSIGN',
-        'LPAREN',
-        'RPAREN',
-        }
+    tokens = { NUMBER, PLUS, MINUS, TIMES, DIVIDE, LPAREN, RPAREN }
 
     # String containing ignored characters between tokens
     ignore = ' \t'
 
     # Regular expression rules for tokens
-    ID      = r'[a-zA-Z_][a-zA-Z0-9_]*'
     PLUS    = r'\+'
     MINUS   = r'-'
     TIMES   = r'\*'
     DIVIDE  = r'/'
-    ASSIGN  = r'='
     LPAREN  = r'\('
     RPAREN  = r'\)'
 

@@ -1,6 +1,6 @@
-SLY (Sly Lex-Yacc)                   Version 0.2
+SLY (Sly Lex-Yacc)                   Version 0.3
 
-Copyright (C) 2016-2017
+Copyright (C) 2016-2018
 David M. Beazley (Dabeaz LLC)
 All rights reserved.
 
@@ -85,9 +85,7 @@ expressions and store variables:
     from sly import Lexer, Parser
 
     class CalcLexer(Lexer):
-        tokens = {
-            'NAME', 'NUMBER',
-            }
+        tokens = { NAME, NUMBER }
         ignore = ' \t'
         literals = { '=', '+', '-', '*', '/', '(', ')' }
 

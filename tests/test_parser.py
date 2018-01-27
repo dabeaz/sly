@@ -3,16 +3,7 @@ from sly import Lexer, Parser
 
 class CalcLexer(Lexer):
     # Set of token names.   This is always required
-    tokens = {
-        'ID',
-        'NUMBER',
-        'PLUS',
-        'MINUS',
-        'TIMES',
-        'DIVIDE',
-        'ASSIGN',
-        }
-
+    tokens = { ID, NUMBER, PLUS, MINUS, TIMES, DIVIDE, ASSIGN }
     literals = { '(', ')' }
 
     # String containing ignored characters between tokens
@@ -38,8 +29,8 @@ class CalcLexer(Lexer):
     def newline(self, t):
         self.lineno += t.value.count('\n')
 
-    def error(self, value):
-        self.errors.append(value)
+    def error(self, t):
+        self.errors.append(t.value[0])
         self.index += 1
 
     def __init__(self):
@@ -49,9 +40,9 @@ class CalcParser(Parser):
     tokens = CalcLexer.tokens
 
     precedence = (
-        ('left', 'PLUS', 'MINUS'),
-        ('left', 'TIMES', 'DIVIDE'),
-        ('right', 'UMINUS'),
+        ('left', PLUS, MINUS),
+        ('left', TIMES, DIVIDE),
+        ('right', UMINUS),
         )
 
     def __init__(self):

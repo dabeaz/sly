@@ -68,17 +68,8 @@ lexer that tokenizes the above text::
 
     class CalcLexer(Lexer):
         # Set of token names.   This is always required
-        tokens = {
-            'ID',       
-            'NUMBER',
-            'PLUS',
-            'MINUS',
-            'TIMES',
-            'DIVIDE',
-            'ASSIGN',
-            'LPAREN',
-            'RPAREN',
-            }
+        tokens = { ID, NUMBER, PLUS, MINUS, TIMES, 
+                   DIVIDE, ASSIGN, LPAREN, RPAREN }
 
         # String containing ignored characters between tokens
         ignore = ' \t'
@@ -131,18 +122,11 @@ In the example, the following code specified the token names::
     class CalcLexer(Lexer):
         ...
         # Set of token names.   This is always required
-        tokens = {
-            'ID',
-            'NUMBER',
-            'PLUS',
-            'MINUS',
-            'TIMES',
-            'DIVIDE',
-            'ASSIGN',
-            'LPAREN',
-            'RPAREN',
-            }
+        tokens = { ID, NUMBER, PLUS, MINUS, TIMES, 
+                   DIVIDE, ASSIGN, LPAREN, RPAREN }
         ...
+
+Token names should be specified using all-caps as shown. 
 
 Specification of token match patterns
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -167,7 +151,7 @@ short tokens.  For example, if you wanted to have separate tokens for
 example::
 
     class MyLexer(Lexer):
-        tokens = {'ASSIGN', 'EQ', ...}
+        tokens = { ASSIGN, EQ, ...}
         ...
         EQ     = r'=='       # MUST APPEAR FIRST! (LONGER)
         ASSIGN = r'='
@@ -251,18 +235,46 @@ Instead of using the ``@_()`` decorator, you can also write a method
 that matches the same name as a token previously specified as a
 string. For example::
 
-    ID = r'[a-zA-Z_][a-zA-Z0-9_]*'
+    NUMBER = r'\d+'
     ...
-    def ID(self, t):
-        reserved = { 'if', 'else', 'while', 'for' }
-        if t.value in reserved:
-             t.type = t.value.upper()
+    def NUMBER(self, t):
+        t.value = int(t.value)
         return t
 
 This is potentially useful trick for debugging a lexer.  You can temporarily
 attach a method a token and have it execute when the token is encountered.
 If you later take the method away, the lexer will revert back to its original
 behavior.
+
+Token Remapping
+^^^^^^^^^^^^^^^
+
+Occasionally, you might need to remap tokens based on special cases. 
+Consider the case of matching identifiers such as "abc", "python", or "guido".  
+Certain identifiers such as "if", "else", and "while" might need to be
+treated as special keywords.  To handle this, include token remapping rules when
+writing the lexer like this::
+
+    # calclex.py
+
+    from sly import Lexer
+
+    class CalcLexer(Lexer):
+        tokens = { ID, IF, ELSE, WHILE }
+        # String containing ignored characters (between tokens)
+        ignore = ' \t'
+
+        # Base ID rule
+        ID = r'[a-zA-Z_][a-zA-Z0-9_]*'
+
+        # Special cases
+        ID['if'] = IF
+        ID['else'] = ELSE
+        ID['while'] = WHILE
+
+When parsing an identifier, the special cases will remap certain matching 
+values to a new token type.  For example, if the value of an identifier is
+"if" above, an ``IF`` token will be generated.
 
 Line numbers and position tracking
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -385,26 +397,11 @@ into practice::
     from sly import Lexer
  
     class CalcLexer(Lexer):
-        # Set of reserved names (language keywords)
-        reserved_words = { 'WHILE', 'IF', 'ELSE', 'PRINT' }
-
         # Set of token names.   This is always required
-        tokens = {
-            'NUMBER',
-            'ID',
-            'PLUS',
-            'MINUS',
-            'TIMES',
-            'DIVIDE',
-            'ASSIGN',
-            'EQ',
-            'LT',
-            'LE',
-            'GT',
-            'GE',
-            'NE',
-            *reserved_words,
-            } 
+        tokens = { NUMBER, ID, WHILE, IF, ELSE, PRINT,
+                   PLUS, MINUS, TIMES, DIVIDE, ASSIGN,
+                   EQ, LT, LE, GT, GE, NE }
+
 
         literals = { '(', ')', '{', '}', ';' }
 
@@ -429,12 +426,12 @@ into practice::
             t.value = int(t.value)
             return t
 
-        @_(r'[a-zA-Z_][a-zA-Z0-9_]*')
-        def ID(self, t):
-            # Check if name matches a reserved word (change token type if true)
-            if t.value.upper() in self.reserved_words:
-                t.type = t.value.upper()
-            return t
+        # Identifiers and keywords
+        ID = r'[a-zA-Z_][a-zA-Z0-9_]*'
+        ID['if'] = IF
+        ID['else'] = ELSE
+        ID['while'] = WHILE
+        ID['print'] = PRINT
 
         ignore_comment = r'\#.*'
 
@@ -443,8 +440,8 @@ into practice::
         def ignore_newline(self, t):
             self.lineno += t.value.count('\n')
 
-        def error(self, value):
-            print('Line %d: Bad character %r' % (self.lineno, value[0]))
+        def error(self, t):
+            print('Line %d: Bad character %r' % (self.lineno, t.value[0]))
             self.index += 1
 
     if __name__ == '__main__':
@@ -462,27 +459,27 @@ into practice::
 
 If you run this code, you'll get output that looks like this::
 
-    Token(ID, 'x', 3, 12)
-    Token(ASSIGN, '=', 3, 14)
-    Token(NUMBER, 0, 3, 16)
-    Token(;, ';', 3, 17)
-    Token(WHILE, 'while', 4, 19)
-    Token((, '(', 4, 25)
-    Token(ID, 'x', 4, 26)
-    Token(LT, '<', 4, 28)
-    Token(NUMBER, 10, 4, 30)
-    Token(), ')', 4, 32)
-    Token({, '{', 4, 34)
-    Token(PRINT, 'print', 5, 40)
-    Token(ID, 'x', 5, 46)
+    Token(type='ID', value='x', lineno=3, index=20)
+    Token(type='ASSIGN', value='=', lineno=3, index=22)
+    Token(type='NUMBER', value=0, lineno=3, index=24)
+    Token(type=';', value=';', lineno=3, index=25)
+    Token(type='WHILE', value='while', lineno=4, index=31)
+    Token(type='(', value='(', lineno=4, index=37)
+    Token(type='ID', value='x', lineno=4, index=38)
+    Token(type='LT', value='<', lineno=4, index=40)
+    Token(type='NUMBER', value=10, lineno=4, index=42)
+    Token(type=')', value=')', lineno=4, index=44)
+    Token(type='{', value='{', lineno=4, index=46)
+    Token(type='PRINT', value='print', lineno=5, index=56)
+    Token(type='ID', value='x', lineno=5, index=62)
     Line 5: Bad character ':'
-    Token(ID, 'x', 6, 53)
-    Token(ASSIGN, '=', 6, 55)
-    Token(ID, 'x', 6, 57)
-    Token(PLUS, '+', 6, 59)
-    Token(NUMBER, 1, 6, 61)
-    Token(;, ';', 6, 62)
-    Token(}, '}', 7, 64)
+    Token(type='ID', value='x', lineno=6, index=73)
+    Token(type='ASSIGN', value='=', lineno=6, index=75)
+    Token(type='ID', value='x', lineno=6, index=77)
+    Token(type='PLUS', value='+', lineno=6, index=79)
+    Token(type='NUMBER', value=1, lineno=6, index=81)
+    Token(type=';', value=';', lineno=6, index=82)
+    Token(type='}', value='}', lineno=7, index=88)
 
 Study this example closely.  It might take a bit to digest, but all of the
 essential parts of writing a lexer are there. Tokens have to be specified
@@ -914,8 +911,8 @@ like this::
     class CalcParser(Parser):
         ...
         precedence = (
-           ('left', 'PLUS', 'MINUS'),
-           ('left', 'TIMES', 'DIVIDE'),
+           ('left', PLUS, MINUS),
+           ('left', TIMES, DIVIDE),
         )
 
         # Rules where precedence is applied
@@ -1004,9 +1001,9 @@ like this::
     class CalcParser(Parser):
         ...
         precedence = (
-            ('left', 'PLUS', 'MINUS'),
-            ('left', 'TIMES', 'DIVIDE'),
-            ('right', 'UMINUS'),            # Unary minus operator
+            ('left', PLUS, MINUS),
+            ('left', TIMES, DIVIDE),
+            ('right', UMINUS),            # Unary minus operator
         )
 
 Now, in the grammar file, you write the unary minus rule like this::
@@ -1034,10 +1031,10 @@ operators like ``<`` and ``>`` but you didn't want combinations like
     class MyParser(Parser):
          ...
          precedence = (
-              ('nonassoc', 'LESSTHAN', 'GREATERTHAN'),  # Nonassociative operators
-              ('left', 'PLUS', 'MINUS'),
-              ('left', 'TIMES', 'DIVIDE'),
-              ('right', 'UMINUS'),            # Unary minus operator
+              ('nonassoc', LESSTHAN, GREATERTHAN),  # Nonassociative operators
+              ('left', PLUS, MINUS),
+              ('left', TIMES, DIVIDE),
+              ('right', UMINUS),            # Unary minus operator
          )
 
 If you do this, the occurrence of input text such as ``a < b < c``

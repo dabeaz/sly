@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------------
 # sly: lex.py
 #
-# Copyright (C) 2016
+# Copyright (C) 2016 - 2018
 # David M. Beazley (Dabeaz LLC)
 # All rights reserved.
 #
@@ -31,11 +31,10 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # -----------------------------------------------------------------------------
 
-__version__    = '0.2'
+__version__    = '0.3'
 __all__ = ['Lexer', 'LexerStateChange']
 
 import re
-from collections import OrderedDict
 
 class LexError(Exception):
     '''
@@ -78,19 +77,40 @@ class Token(object):
     def __repr__(self):
         return f'Token(type={self.type!r}, value={self.value!r}, lineno={self.lineno}, index={self.index})'
 
-class LexerMetaDict(OrderedDict):
+class TokenStr(str):
+    @staticmethod
+    def __new__(cls, value):
+        self = super().__new__(cls, value)
+        self.remap = { }
+        return self
+
+    def __setitem__(self, key, value):
+        self.remap[key] = value
+
+class LexerMetaDict(dict):
     '''
     Special dictionary that prohits duplicate definitions in lexer specifications.
     '''
     def __setitem__(self, key, value):
+        if isinstance(value, str):
+            value = TokenStr(value)
+            
         if key in self and not isinstance(value, property):
-            if isinstance(self[key], str):
+            prior = self[key]
+            if isinstance(prior, str):
                 if callable(value):
-                    value.pattern = self[key]
+                    value.pattern = prior
+                    value.remap = getattr(prior, 'remap', None)
                 else:
                     raise AttributeError(f'Name {key} redefined')
 
         super().__setitem__(key, value)
+
+    def __getitem__(self, key):
+        if key not in self and key.isupper() and key[:1] != '_':
+            return key
+        else:
+            return super().__getitem__(key)
 
 class LexerMeta(type):
     '''
@@ -114,7 +134,12 @@ class LexerMeta(type):
 
     def __new__(meta, clsname, bases, attributes):
         del attributes['_']
+        remapping = { key: val.remap for key, val in attributes.items()
+                      if getattr(val, 'remap', None) }
+        attributes = { key: str(val) if isinstance(val, TokenStr) else val
+                       for key, val in attributes.items() }
         cls = super().__new__(meta, clsname, bases, attributes)
+        cls._remapping = remapping
         cls._build(list(attributes.items()))
         return cls
 
@@ -159,6 +184,16 @@ class Lexer(metaclass=LexerMeta):
         cls._ignored_tokens = set(cls._ignored_tokens)
         cls._token_funcs = dict(cls._token_funcs)
 
+        # Build a set of all remapped tokens
+        remapped_tokens = set()
+        for toks in cls._remapping.values():
+            remapped_tokens.update(toks.values())
+
+        undefined = remapped_tokens - cls._token_names
+        if undefined:
+            missing = ', '.join(undefined)
+            raise LexerBuildError(f'{missing} not included in token(s)')
+
         parts = []
         for tokname, value in cls._collect_rules(definitions):
             if tokname.startswith('ignore_'):
@@ -169,8 +204,10 @@ class Lexer(metaclass=LexerMeta):
                 pattern = value
 
             elif callable(value):
-                pattern = value.pattern
                 cls._token_funcs[tokname] = value
+                pattern = getattr(value, 'pattern', None)
+                if not pattern:
+                    continue
 
             # Form the regular expression component
             part = f'(?P<{tokname}>{pattern})'
@@ -209,7 +246,7 @@ class Lexer(metaclass=LexerMeta):
             _ignore = self.ignore
             _token_funcs = self._token_funcs
             _literals = self._literals
-
+            _remapping = self._remapping
             self.text = text
             try:
                 while True:
@@ -228,6 +265,9 @@ class Lexer(metaclass=LexerMeta):
                         index = m.end()
                         tok.value = m.group()
                         tok.type = m.lastgroup
+                        if tok.type in _remapping:
+                            tok.type = _remapping[tok.type].get(tok.value, tok.type)
+
                         if tok.type in _token_funcs:
                             self.index = index
                             self.lineno = lineno

@@ -8,9 +8,7 @@ sys.path.insert(0, "../..")
 from sly import Lexer, Parser
 
 class CalcLexer(Lexer):
-    tokens = {
-        'NAME', 'NUMBER',
-        }
+    tokens = { NAME, NUMBER }
     ignore = ' \t'
     literals = { '=', '+', '-', '*', '/', '(', ')' }
 
@@ -36,7 +34,7 @@ class CalcParser(Parser):
     precedence = (
         ('left', '+', '-'),
         ('left', '*', '/'),
-        ('right', 'UMINUS'),
+        ('right', UMINUS),
         )
 
     def __init__(self):
