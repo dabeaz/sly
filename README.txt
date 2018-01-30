@@ -85,20 +85,27 @@ expressions and store variables:
     from sly import Lexer, Parser
 
     class CalcLexer(Lexer):
-        tokens = { NAME, NUMBER }
+        tokens = { NAME, NUMBER, PLUS, TIMES, MINUS, DIVIDE, ASSIGN, LPAREN, RPAREN }
         ignore = ' \t'
-        literals = { '=', '+', '-', '*', '/', '(', ')' }
 
         # Tokens
         NAME = r'[a-zA-Z_][a-zA-Z0-9_]*'
+        NUMBER = r'\d+'
 
-        @_(r'\d+')
-        def NUMBER(self, t):
-            t.value = int(t.value)
-            return t
+        # Special symbols
+        PLUS = r'\+'
+        MINUS = r'-'
+        TIMES = r'\*'
+        DIVIDE = r'/'
+        ASSIGN = r'='
+        LPAREN = r'\('
+        RPAREN = r'\)'
 
-        @_(r'\n+')
-        def newline(self, t):
+        # Ignored pattern
+        ignore_newline = r'\n+'
+
+        # Extra action for newlines
+        def ignore_newline(self, t):
             self.lineno += t.value.count('\n')
 
         def error(self, t):
@@ -109,15 +116,15 @@ expressions and store variables:
         tokens = CalcLexer.tokens
 
         precedence = (
-            ('left', '+', '-'),
-            ('left', '*', '/'),
-            ('right', 'UMINUS'),
+            ('left', PLUS, MINUS),
+            ('left', TIMES, DIVIDE),
+            ('right', UMINUS),
             )
 
         def __init__(self):
             self.names = { }
 
-        @_('NAME "=" expr')
+        @_('NAME ASSIGN expr')
         def statement(self, p):
             self.names[p.NAME] = p.expr
 
@@ -125,27 +132,27 @@ expressions and store variables:
         def statement(self, p):
             print(p.expr)
 
-        @_('expr "+" expr')
+        @_('expr PLUS expr')
         def expr(self, p):
             return p.expr0 + p.expr1
 
-        @_('expr "-" expr')
+        @_('expr MINUS expr')
         def expr(self, p):
             return p.expr0 - p.expr1
 
-        @_('expr "*" expr')
+        @_('expr TIMES expr')
         def expr(self, p):
             return p.expr0 * p.expr1
 
-        @_('expr "/" expr')
+        @_('expr DIVIDE expr')
         def expr(self, p):
             return p.expr0 / p.expr1
 
-        @_('"-" expr %prec UMINUS')
+        @_('MINUS expr %prec UMINUS')
         def expr(self, p):
             return -p.expr
 
-        @_('"(" expr ")"')
+        @_('LPAREN expr RPAREN')
         def expr(self, p):
             return p.expr
 
@@ -158,7 +165,7 @@ expressions and store variables:
             try:
                 return self.names[p.NAME]
             except LookupError:
-                print("Undefined name '%s'" % p.NAME)
+                print(f'Undefined name {p.NAME!r}')
                 return 0
 
     if __name__ == '__main__':
