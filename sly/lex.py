@@ -79,9 +79,10 @@ class Token(object):
 
 class TokenStr(str):
     @staticmethod
-    def __new__(cls, value):
+    def __new__(cls, value, before=None):
         self = super().__new__(cls, value)
         self.remap = { }
+        self.before = before
         return self
 
     def __setitem__(self, key, value):
@@ -89,12 +90,15 @@ class TokenStr(str):
 
 class LexerMetaDict(dict):
     '''
-    Special dictionary that prohits duplicate definitions in lexer specifications.
+    Special dictionary that prohibits duplicate definitions in lexer specifications.
     '''
     def __setitem__(self, key, value):
         if isinstance(value, str):
             value = TokenStr(value)
             
+        elif isinstance(value, tuple) and len(value) == 2:
+            value = TokenStr(*value)
+
         if key in self and not isinstance(value, property):
             prior = self[key]
             if isinstance(prior, str):
@@ -136,11 +140,12 @@ class LexerMeta(type):
         del attributes['_']
         remapping = { key: val.remap for key, val in attributes.items()
                       if getattr(val, 'remap', None) }
-        attributes = { key: str(val) if isinstance(val, TokenStr) else val
+        clsattributes = { key: str(val) if isinstance(val, TokenStr) else val
                        for key, val in attributes.items() }
-        cls = super().__new__(meta, clsname, bases, attributes)
+        cls = super().__new__(meta, clsname, bases, clsattributes)
         cls._remapping = remapping
-        cls._build(list(attributes.items()))
+        cls._attributes = attributes
+        cls._build()
         return cls
 
 class Lexer(metaclass=LexerMeta):
@@ -158,20 +163,37 @@ class Lexer(metaclass=LexerMeta):
     _ignored_tokens = set()
 
     @classmethod
-    def _collect_rules(cls, definitions):
+    def _collect_rules(cls):
         '''
         Collect all of the rules from class definitions that look like tokens
         '''
+        definitions = list(cls._attributes.items())
         rules = []
+
+        for base in cls.__bases__:
+            if isinstance(base, LexerMeta):
+                rules.extend(base._collect_rules())
+
         for key, value in definitions:
             if (key in cls.tokens) or key.startswith('ignore_') or hasattr(value, 'pattern'):
-                rules.append((key, value))
+                # Check existing rules
+                for n, (rkey, _) in enumerate(rules):
+                    if rkey == key:
+                        rules[n] = (key, value)
+                        break
+                    elif isinstance(value, TokenStr) and value.before == rkey:
+                        rules.insert(n, (key, value))
+                        break
+                else:
+                    rules.append((key, value))
+                # rules.append((key, value))
             elif isinstance(value, str) and not key.startswith('_') and key not in {'ignore'}:
                 raise LexerBuildError(f'{key} does not match a name in tokens')
+
         return rules
 
     @classmethod
-    def _build(cls, definitions):
+    def _build(cls):
         '''
         Build the lexer object from the collected tokens and regular expressions.
         Validate the rules to make sure they look sane.
@@ -179,6 +201,8 @@ class Lexer(metaclass=LexerMeta):
         if 'tokens' not in vars(cls):
             raise LexerBuildError(f'{cls.__qualname__} class does not define a tokens attribute')
 
+        # Inherit token names, literals, ignored tokens, and other details 
+        # from parent class (if any)
         cls._token_names = cls._token_names | set(cls.tokens)
         cls._literals = cls._literals | set(cls.literals)
         cls._ignored_tokens = set(cls._ignored_tokens)
@@ -195,7 +219,7 @@ class Lexer(metaclass=LexerMeta):
             raise LexerBuildError(f'{missing} not included in token(s)')
 
         parts = []
-        for tokname, value in cls._collect_rules(definitions):
+        for tokname, value in cls._collect_rules():
             if tokname.startswith('ignore_'):
                 tokname = tokname[7:]
                 cls._ignored_tokens.add(tokname)
@@ -228,8 +252,9 @@ class Lexer(metaclass=LexerMeta):
             return
 
         # Form the master regular expression
-        previous = ('|' + cls._master_re.pattern) if cls._master_re else ''
-        cls._master_re = re.compile('|'.join(parts) + previous, cls.reflags)
+        #previous = ('|' + cls._master_re.pattern) if cls._master_re else ''
+        # cls._master_re = re.compile('|'.join(parts) + previous, cls.reflags)
+        cls._master_re = re.compile('|'.join(parts), cls.reflags)
 
         # Verify that that ignore and literals specifiers match the input type
         if not isinstance(cls.ignore, str):
