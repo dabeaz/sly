@@ -189,3 +189,23 @@ def test_modern_error_return():
     assert vals == [123, ':+-', '+', '-']
     assert lexer.errors == [ ':+-' ]
 
+# Test Lexer Inheritance.  This class should inherit all of the tokens
+# and features of ModernCalcLexer, but add two new tokens to it.  The
+# PLUSPLUS token matches before the PLUS token.
+
+if False:
+    class SubModernCalcLexer(ModernCalcLexer):
+        tokens |= { DOLLAR, PLUSPLUS }
+        DOLLAR = r'\$'
+        PLUSPLUS = r'\+\+'
+        PLUSPLUS.before = PLUS
+
+    def test_lexer_inherit():
+        lexer = SubModernCalcLexer()
+        toks = list(lexer.tokenize('123 + - $ ++ if'))
+        types = [t.type for t in toks]
+        vals = [t.value for t in toks]
+        assert types == ['NUMBER', 'PLUS', 'MINUS', 'DOLLAR', 'PLUSPLUS', 'IF']
+        assert vals == [123, '+', '-', '$', '++', 'if']
+
+

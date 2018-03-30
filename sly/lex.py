@@ -35,6 +35,7 @@ __version__    = '0.3'
 __all__ = ['Lexer', 'LexerStateChange']
 
 import re
+import copy
 
 class LexError(Exception):
     '''
@@ -79,14 +80,24 @@ class Token(object):
 
 class TokenStr(str):
     @staticmethod
-    def __new__(cls, value, before=None):
+    def __new__(cls, value):
         self = super().__new__(cls, value)
-        self.remap = { }
-        self.before = before
+        if isinstance(value, TokenStr):
+            self.remap = dict(value.remap)
+            self.before = value.before
+        else:
+            self.remap = { }
+            self.before = None
         return self
 
+    # Implementation of TOKEN[value] = NEWTOKEN
     def __setitem__(self, key, value):
         self.remap[key] = value
+
+    # Implementation of del TOKEN[value]
+    def __delitem__(self, key):
+        del self.remap[key]
+
 
 class LexerMetaDict(dict):
     '''
@@ -103,12 +114,13 @@ class LexerMetaDict(dict):
                     value.pattern = prior
                     value.remap = getattr(prior, 'remap', None)
                 else:
-                    raise AttributeError(f'Name {key} redefined')
+                    pass
+                    # raise AttributeError(f'Name {key} redefined')
 
         super().__setitem__(key, value)
 
     def __getitem__(self, key):
-        if key not in self and key.isupper() and key[:1] != '_':
+        if key not in self and key.split('ignore_')[-1].isupper() and key[:1] != '_':
             return key
         else:
             return super().__getitem__(key)
@@ -118,8 +130,9 @@ class LexerMeta(type):
     Metaclass for collecting lexing rules
     '''
     @classmethod
-    def __prepare__(meta, *args, **kwargs):
+    def __prepare__(meta, name, bases):
         d = LexerMetaDict()
+
         def _(pattern, *extra):
             patterns = [pattern, *extra]
             def decorate(func):
@@ -130,17 +143,22 @@ class LexerMeta(type):
                     func.pattern = pattern
                 return func
             return decorate
+
+        def before(tok, pattern):
+            value = TokenStr(pattern)
+            value.before = tok
+            return value
+
         d['_'] = _
+        d['before'] = before
         return d
 
     def __new__(meta, clsname, bases, attributes):
         del attributes['_']
-        remapping = { key: val.remap for key, val in attributes.items()
-                      if getattr(val, 'remap', None) }
         clsattributes = { key: str(val) if isinstance(val, TokenStr) else val
                        for key, val in attributes.items() }
         cls = super().__new__(meta, clsname, bases, clsattributes)
-        cls._remapping = remapping
+        # Record the original definition environment
         cls._attributes = attributes
         cls._build()
         return cls
@@ -151,13 +169,14 @@ class Lexer(metaclass=LexerMeta):
     literals = set()
     ignore = ''
     reflags = 0
-
-    # These attributes are constructed automatically by the associated metaclass
-    _master_re = None
-    _token_names = set()
-    _literals = set()
-    _token_funcs = { }
+    
+    _token_funcs = {}
     _ignored_tokens = set()
+    _remapping = {}
+
+    # Internal attributes
+    __state_stack = None
+    __set_state = None
 
     @classmethod
     def _collect_rules(cls):
@@ -181,10 +200,12 @@ class Lexer(metaclass=LexerMeta):
                     rules[n] = (key, value)
                     existing[key] = value
                 elif isinstance(value, TokenStr) and value.before in existing:
-                    n = rules.index((key, existing[key]))
+                    n = rules.index((value.before, existing[value.before]))
                     rules.insert(n, (key, value))
+                    existing[key] = value
                 else:
                     rules.append((key, value))
+                    existing[key] = value
             elif isinstance(value, str) and not key.startswith('_') and key not in {'ignore'}:
                 raise LexerBuildError(f'{key} does not match a name in tokens')
 
@@ -199,19 +220,18 @@ class Lexer(metaclass=LexerMeta):
         if 'tokens' not in vars(cls):
             raise LexerBuildError(f'{cls.__qualname__} class does not define a tokens attribute')
 
-        # Inherit token names, literals, ignored tokens, and other details 
-        # from parent class (if any)
-        cls._token_names = cls._token_names | set(cls.tokens)
-        cls._literals = cls._literals | set(cls.literals)
         cls._ignored_tokens = set(cls._ignored_tokens)
         cls._token_funcs = dict(cls._token_funcs)
+        cls._remapping = dict(cls._remapping)
+        cls._remapping.update({ key: val.remap for key, val in cls._attributes.items()
+                           if getattr(val, 'remap', None) })
 
         # Build a set of all remapped tokens
         remapped_tokens = set()
         for toks in cls._remapping.values():
             remapped_tokens.update(toks.values())
 
-        undefined = remapped_tokens - cls._token_names
+        undefined = remapped_tokens - set(cls.tokens)
         if undefined:
             missing = ', '.join(undefined)
             raise LexerBuildError(f'{missing} not included in token(s)')
@@ -261,80 +281,105 @@ class Lexer(metaclass=LexerMeta):
         if not all(isinstance(lit, str) for lit in cls.literals):
             raise LexerBuildError('literals must be specified as strings')
 
+    def begin(self, cls):
+        '''
+        Begin a new lexer state
+        '''
+        assert isinstance(cls, LexerMeta), "state must be a subclass of Lexer"
+        if self.__set_state:
+            self.__set_state(cls)
+        self.__class__ = cls
+
+    def push_state(self, cls):
+        '''
+        Push a new lexer state onto the stack
+        '''
+        if self.__state_stack is None:
+            self.__state_stack = []
+        self.__state_stack.append(type(self))
+        self.begin(cls)
+
+    def pop_state(self):
+        '''
+        Pop a lexer state from the stack
+        '''
+        self.begin(self.__state_stack.pop())
+
     def tokenize(self, text, lineno=1, index=0):
-        while True:
-            # Local copies of frequently used values
-            _ignored_tokens = self._ignored_tokens
-            _master_re = self._master_re
-            _ignore = self.ignore
-            _token_funcs = self._token_funcs
-            _literals = self._literals
-            _remapping = self._remapping
-            self.text = text
-            try:
-                while True:
-                    try:
-                        if text[index] in _ignore:
-                            index += 1
+        _ignored_tokens = _master_re = _ignore = _token_funcs = _literals = _remapping = None
+
+        def _set_state(cls):
+            nonlocal _ignored_tokens, _master_re, _ignore, _token_funcs, _literals, _remapping
+            _ignored_tokens = cls._ignored_tokens
+            _master_re = cls._master_re
+            _ignore = cls.ignore
+            _token_funcs = cls._token_funcs
+            _literals = cls.literals
+            _remapping = cls._remapping
+
+        self.__set_state = _set_state
+        _set_state(type(self))
+        self.text = text
+
+        try:
+            while True:
+                try:
+                    if text[index] in _ignore:
+                        index += 1
+                        continue
+                except IndexError:
+                    return
+
+                tok = Token()
+                tok.lineno = lineno
+                tok.index = index
+                m = _master_re.match(text, index)
+                if m:
+                    index = m.end()
+                    tok.value = m.group()
+                    tok.type = m.lastgroup
+                    if tok.type in _remapping:
+                        tok.type = _remapping[tok.type].get(tok.value, tok.type)
+
+                    if tok.type in _token_funcs:
+                        self.index = index
+                        self.lineno = lineno
+                        tok = _token_funcs[tok.type](self, tok)
+                        index = self.index
+                        lineno = self.lineno
+                        if not tok:
                             continue
-                    except IndexError:
-                        return
 
-                    tok = Token()
-                    tok.lineno = lineno
-                    tok.index = index
-                    m = _master_re.match(text, index)
-                    if m:
-                        index = m.end()
-                        tok.value = m.group()
-                        tok.type = m.lastgroup
-                        if tok.type in _remapping:
-                            tok.type = _remapping[tok.type].get(tok.value, tok.type)
+                    if tok.type in _ignored_tokens:
+                        continue
 
-                        if tok.type in _token_funcs:
-                            self.index = index
-                            self.lineno = lineno
-                            tok = _token_funcs[tok.type](self, tok)
-                            index = self.index
-                            lineno = self.lineno
-                            if not tok:
-                                continue
+                    yield tok
 
-                        if tok.type in _ignored_tokens:
-                            continue
-
+                else:
+                    # No match, see if the character is in literals
+                    if text[index] in _literals:
+                        tok.value = text[index]
+                        tok.type = tok.value
+                        index += 1
                         yield tok
-
                     else:
-                        # No match, see if the character is in literals
-                        if text[index] in _literals:
-                            tok.value = text[index]
-                            tok.type = tok.value
-                            index += 1
+                        # A lexing error
+                        self.index = index
+                        self.lineno = lineno
+                        tok.type = 'ERROR'
+                        tok.value = text[index:]
+                        tok = self.error(tok)
+                        if tok is not None:
                             yield tok
-                        else:
-                            # A lexing error
-                            self.index = index
-                            self.lineno = lineno
-                            tok.type = 'ERROR'
-                            tok.value = text[index:]
-                            tok = self.error(tok)
-                            if tok is not None:
-                                yield tok
 
-                            index = self.index
-                            lineno = self.lineno
+                        index = self.index
+                        lineno = self.lineno
 
-            except LexerStateChange as e:
-                self.__class__ = e.newstate
-                if e.tok:
-                    yield e.tok
-
-            # Set the final state of the lexer before exiting (even if exception)
-            finally:
-                self.text = text
-                self.index = index
-                self.lineno = lineno
+        # Set the final state of the lexer before exiting (even if exception)
+        finally:
+            self.text = text
+            self.index = index
+            self.lineno = lineno
 
     # Default implementations of the error handler. May be changed in subclasses
     def error(self, t):
