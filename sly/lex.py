@@ -96,9 +96,6 @@ class LexerMetaDict(dict):
         if isinstance(value, str):
             value = TokenStr(value)
             
-        elif isinstance(value, tuple) and len(value) == 2:
-            value = TokenStr(*value)
-
         if key in self and not isinstance(value, property):
             prior = self[key]
             if isinstance(prior, str):
@@ -170,23 +167,24 @@ class Lexer(metaclass=LexerMeta):
         definitions = list(cls._attributes.items())
         rules = []
 
+        # Collect all of the previous rules from base classes
         for base in cls.__bases__:
             if isinstance(base, LexerMeta):
                 rules.extend(base._collect_rules())
 
+        existing = dict(rules)
+
         for key, value in definitions:
             if (key in cls.tokens) or key.startswith('ignore_') or hasattr(value, 'pattern'):
-                # Check existing rules
-                for n, (rkey, _) in enumerate(rules):
-                    if rkey == key:
-                        rules[n] = (key, value)
-                        break
-                    elif isinstance(value, TokenStr) and value.before == rkey:
-                        rules.insert(n, (key, value))
-                        break
+                if key in existing:
+                    n = rules.index((key, existing[key]))
+                    rules[n] = (key, value)
+                    existing[key] = value
+                elif isinstance(value, TokenStr) and value.before in existing:
+                    n = rules.index((key, existing[key]))
+                    rules.insert(n, (key, value))
                 else:
                     rules.append((key, value))
-                # rules.append((key, value))
             elif isinstance(value, str) and not key.startswith('_') and key not in {'ignore'}:
                 raise LexerBuildError(f'{key} does not match a name in tokens')
 
