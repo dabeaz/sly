@@ -80,48 +80,64 @@ class Token(object):
 
 class TokenStr(str):
     @staticmethod
-    def __new__(cls, value):
+    def __new__(cls, value, key=None, remap=None):
         self = super().__new__(cls, value)
-        if isinstance(value, TokenStr):
-            self.remap = dict(value.remap)
-            self.before = value.before
-        else:
-            self.remap = { }
-            self.before = None
+        self.key = key
+        self.remap = remap
         return self
 
     # Implementation of TOKEN[value] = NEWTOKEN
     def __setitem__(self, key, value):
-        self.remap[key] = value
+        if self.remap is not None:
+            self.remap[self.key, key] = value
 
     # Implementation of del TOKEN[value]
     def __delitem__(self, key):
-        del self.remap[key]
+        if self.remap is not None:
+            self.remap[self.key, key] = self.key
 
+class _Before:
+    def __init__(self, tok, pattern):
+        self.tok = tok
+        self.pattern = pattern
 
 class LexerMetaDict(dict):
     '''
     Special dictionary that prohibits duplicate definitions in lexer specifications.
     '''
+    def __init__(self):
+        self.before = { }
+        self.delete = [ ]
+        self.remap = { }
+
     def __setitem__(self, key, value):
         if isinstance(value, str):
-            value = TokenStr(value)
+            value = TokenStr(value, key, self.remap)
+            
+        if isinstance(value, _Before):
+            self.before[key] = value.tok
+            value = TokenStr(value.pattern, key, self.remap)
             
         if key in self and not isinstance(value, property):
             prior = self[key]
             if isinstance(prior, str):
                 if callable(value):
                     value.pattern = prior
-                    value.remap = getattr(prior, 'remap', None)
                 else:
-                    pass
-                    # raise AttributeError(f'Name {key} redefined')
+                    raise AttributeError(f'Name {key} redefined')
 
         super().__setitem__(key, value)
 
+    def __delitem__(self, key):
+        self.delete.append(key)
+        if key not in self and key.isupper():
+            pass
+        else:
+            return super().__delitem__(key)
+
     def __getitem__(self, key):
         if key not in self and key.split('ignore_')[-1].isupper() and key[:1] != '_':
-            return key
+            return TokenStr(key, key, self.remap)
         else:
             return super().__getitem__(key)
 
@@ -144,22 +160,24 @@ class LexerMeta(type):
                 return func
             return decorate
 
-        def before(tok, pattern):
-            value = TokenStr(pattern)
-            value.before = tok
-            return value
-
         d['_'] = _
-        d['before'] = before
+        d['before'] = _Before
         return d
 
     def __new__(meta, clsname, bases, attributes):
         del attributes['_']
-        clsattributes = { key: str(val) if isinstance(val, TokenStr) else val
-                       for key, val in attributes.items() }
-        cls = super().__new__(meta, clsname, bases, clsattributes)
-        # Record the original definition environment
-        cls._attributes = attributes
+        del attributes['before']
+
+        # Create attributes for use in the actual class body
+        cls_attributes = { str(key): str(val) if isinstance(val, TokenStr) else val
+                           for key, val in attributes.items() }
+        cls = super().__new__(meta, clsname, bases, cls_attributes)
+
+        # Attach various metadata to the class
+        cls._attributes = dict(attributes)
+        cls._remap = attributes.remap
+        cls._before = attributes.before
+        cls._delete = attributes.delete
         cls._build()
         return cls
 
@@ -169,10 +187,13 @@ class Lexer(metaclass=LexerMeta):
     literals = set()
     ignore = ''
     reflags = 0
-    
+
+    _token_names = set()
     _token_funcs = {}
     _ignored_tokens = set()
     _remapping = {}
+    _delete = {}
+    _remap = {}
 
     # Internal attributes
     __state_stack = None
@@ -180,36 +201,63 @@ class Lexer(metaclass=LexerMeta):
 
     @classmethod
     def _collect_rules(cls):
-        '''
-        Collect all of the rules from class definitions that look like tokens
-        '''
-        definitions = list(cls._attributes.items())
+        # Collect all of the rules from class definitions that look like token
+        # information.   There are a few things that govern this:
+        #
+        # 1.  Any definition of the form NAME = str is a token if NAME is
+        #     is defined in the tokens set.
+        #
+        # 2.  Any definition of the form ignore_NAME = str is a rule for an ignored
+        #     token.
+        #
+        # 3.  Any function defined with a 'pattern' attribute is treated as a rule.
+        #     Such functions can be created with the @_ decorator or by defining
+        #     function with the same name as a previously defined string.
+        #
+        # This function is responsible for keeping rules in order. 
+
+        # Collect all previous rules from base classes
         rules = []
 
-        # Collect all of the previous rules from base classes
         for base in cls.__bases__:
             if isinstance(base, LexerMeta):
-                rules.extend(base._collect_rules())
-
+                rules.extend(base._rules)
+                
+        # Dictionary of previous rules
         existing = dict(rules)
 
-        for key, value in definitions:
-            if (key in cls.tokens) or key.startswith('ignore_') or hasattr(value, 'pattern'):
+        for key, value in cls._attributes.items():
+            if (key in cls._token_names) or key.startswith('ignore_') or hasattr(value, 'pattern'):
+                if callable(value) and not hasattr(value, 'pattern'):
+                    raise LexerBuildError(f"function {value} doesn't have a regex pattern")
+                
                 if key in existing:
+                    # The definition matches something that already existed in the base class.
+                    # We replace it, but keep the original ordering
                     n = rules.index((key, existing[key]))
                     rules[n] = (key, value)
                     existing[key] = value
-                elif isinstance(value, TokenStr) and value.before in existing:
-                    n = rules.index((value.before, existing[value.before]))
-                    rules.insert(n, (key, value))
+
+                elif isinstance(value, TokenStr) and key in cls._before:
+                    before = cls._before[key]
+                    if before in existing:
+                        # Position the token before another specified token
+                        n = rules.index((before, existing[before]))
+                        rules.insert(n, (key, value))
+                    else:
+                        # Put at the end of the rule list
+                        rules.append((key, value))
                     existing[key] = value
                 else:
                     rules.append((key, value))
                     existing[key] = value
-            elif isinstance(value, str) and not key.startswith('_') and key not in {'ignore'}:
+
+            elif isinstance(value, str) and not key.startswith('_') and key not in {'ignore', 'literals'}:
                 raise LexerBuildError(f'{key} does not match a name in tokens')
 
-        return rules
+        # Apply deletion rules
+        rules = [ (key, value) for key, value in rules if key not in cls._delete ]
+        cls._rules = rules
 
     @classmethod
     def _build(cls):
@@ -220,24 +268,30 @@ class Lexer(metaclass=LexerMeta):
         if 'tokens' not in vars(cls):
             raise LexerBuildError(f'{cls.__qualname__} class does not define a tokens attribute')
 
+        # Pull definitions created for any parent classes
+        cls._token_names = cls._token_names | set(cls.tokens)
         cls._ignored_tokens = set(cls._ignored_tokens)
         cls._token_funcs = dict(cls._token_funcs)
         cls._remapping = dict(cls._remapping)
-        cls._remapping.update({ key: val.remap for key, val in cls._attributes.items()
-                           if getattr(val, 'remap', None) })
 
-        # Build a set of all remapped tokens
-        remapped_tokens = set()
-        for toks in cls._remapping.values():
-            remapped_tokens.update(toks.values())
+        for (key, val), newtok in cls._remap.items():
+            if key not in cls._remapping:
+                cls._remapping[key] = {}
+            cls._remapping[key][val] = newtok
 
-        undefined = remapped_tokens - set(cls.tokens)
+        remapped_toks = set()
+        for d in cls._remapping.values():
+            remapped_toks.update(d.values())
+            
+        undefined = remapped_toks - set(cls._token_names)
         if undefined:
             missing = ', '.join(undefined)
             raise LexerBuildError(f'{missing} not included in token(s)')
 
+        cls._collect_rules()
+
         parts = []
-        for tokname, value in cls._collect_rules():
+        for tokname, value in cls._rules:
             if tokname.startswith('ignore_'):
                 tokname = tokname[7:]
                 cls._ignored_tokens.add(tokname)
@@ -247,9 +301,7 @@ class Lexer(metaclass=LexerMeta):
 
             elif callable(value):
                 cls._token_funcs[tokname] = value
-                pattern = getattr(value, 'pattern', None)
-                if not pattern:
-                    continue
+                pattern = getattr(value, 'pattern')
 
             # Form the regular expression component
             part = f'(?P<{tokname}>{pattern})'
@@ -338,6 +390,7 @@ class Lexer(metaclass=LexerMeta):
                     index = m.end()
                     tok.value = m.group()
                     tok.type = m.lastgroup
+
                     if tok.type in _remapping:
                         tok.type = _remapping[tok.type].get(tok.value, tok.type)
 

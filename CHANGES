@@ -1,5 +1,83 @@
 Version 0.3
 -----------
+4/1/2018   Support for Lexer inheritance added.  For example:
+
+            from sly import Lexer
+
+            class BaseLexer(Lexer):
+                tokens = { NAME, NUMBER }
+                ignore = ' \t'
+		
+                NAME = r'[a-zA-Z]+'
+		NUMBER = r'\d+'
+
+               
+            class ChildLexer(BaseLexer):
+                tokens = { PLUS, MINUS }
+                PLUS = r'\+'
+                MINUS = r'-'
+
+           In this example, the ChildLexer class gets all of the tokens
+           from the parent class (BaseLexer) in addition to the new
+           definitions it added of its own.  
+
+           One quirk of Lexer inheritance is that definition order has
+           an impact on the low-level regular expression parsing.  By
+           default new definitions are always processed AFTER any previous
+           definitions.  You can change this using the before() function
+           like this:
+
+            class GrandChildLexer(ChildLexer):
+                tokens = { PLUSPLUS, MINUSMINUS }
+                PLUSPLUS = before(PLUS, r'\+\+')
+                MINUSMINUS = before(MINUS, r'--')
+
+           In this example, the PLUSPLUS token is checked before the
+           PLUS token in the base class.  Thus, an input text of '++'
+           will be parsed as a single token PLUSPLUS, not two PLUS tokens.
+
+4/1/2018   Better support lexing states.   Each lexing state can be defined as
+           as a separate class.  Use the begin(cls) method to switch to a
+           different state.  For example:
+
+            from sly import Lexer
+
+            class LexerA(Lexer):
+                tokens = { NAME, NUMBER, LBRACE }
+
+                ignore = ' \t'
+
+                NAME = r'[a-zA-Z]+'
+                NUMBER = r'\d+'
+                LBRACE = r'\{'
+
+                def LBRACE(self, t):
+                    self.begin(LexerB)
+                    return t
+
+            class LexerB(Lexer):
+                tokens = { PLUS, MINUS, RBRACE }
+
+                ignore = ' \t'
+
+                PLUS = r'\+'
+                MINUS = r'-'
+                RBRACE = r'\}'
+
+                def RBRACE(self, t):
+                    self.begin(LexerA)
+                    return t
+
+           In this example, LexerA switches to a new state LexerB when
+           a left brace ({) is encountered.  The begin() method causes
+           the state transition.   LexerB switches back to state LexerA
+           when a right brace (}) is encountered.
+
+           An option to the begin() method, you can also use push_state(cls)
+           and pop_state(cls) methods.  This manages the lexing states as a
+           stack.  The pop_state() method will return back to the previous
+           lexing state.
+   
 1/27/2018  Tokens no longer have to be specified as strings.   For example, you
            can now write:
 
