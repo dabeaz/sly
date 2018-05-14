@@ -57,7 +57,7 @@ described by the following list of token tuples::
     [ ('ID','x'), ('EQUALS','='), ('NUMBER','3'), 
       ('PLUS','+'), ('NUMBER','42'), ('TIMES','*'),
       ('LPAREN','('), ('ID','s'), ('MINUS','-'),
-      ('ID','t'), ('RPAREN',')' ]
+      ('ID','t'), ('RPAREN',')') ]
 
 The SLY ``Lexer`` class is used to do this.   Here is a sample of a simple
 lexer that tokenizes the above text::
@@ -1212,7 +1212,7 @@ appear as the last token on the right in an error rule.  For example::
 This is because the first bad token encountered will cause the rule to
 be reduced--which may make it difficult to recover if more bad tokens
 immediately follow.    It's better to have some kind of landmark such as
-a semicolon, closing parenthesese, or other token that can be used as
+a semicolon, closing parentheses, or other token that can be used as
 a synchronization point.
 
 Panic mode recovery
