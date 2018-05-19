@@ -2,9 +2,9 @@ SLY (Sly Lex Yacc)
 ==================
 
 This document provides an overview of lexing and parsing with SLY.
-Given the intrinsic complexity of parsing, I would strongly advise 
+Given the intrinsic complexity of parsing, I would strongly advise
 that you read (or at least skim) this entire document before jumping
-into a big development project with SLY.  
+into a big development project with SLY.
 
 SLY requires Python 3.6 or newer.  If you're using an older version,
 you're out of luck. Sorry.
@@ -54,10 +54,10 @@ The first step of parsing is to break the text into tokens where
 each token has a type and value. For example, the above text might be
 described by the following list of token tuples::
 
-    [ ('ID','x'), ('EQUALS','='), ('NUMBER','3'), 
+    [ ('ID','x'), ('EQUALS','='), ('NUMBER','3'),
       ('PLUS','+'), ('NUMBER','42'), ('TIMES','*'),
       ('LPAREN','('), ('ID','s'), ('MINUS','-'),
-      ('ID','t'), ('RPAREN',')' ]
+      ('ID','t'), ('RPAREN',')') ]
 
 The SLY ``Lexer`` class is used to do this.   Here is a sample of a simple
 lexer that tokenizes the above text::
@@ -68,7 +68,7 @@ lexer that tokenizes the above text::
 
     class CalcLexer(Lexer):
         # Set of token names.   This is always required
-        tokens = { ID, NUMBER, PLUS, MINUS, TIMES, 
+        tokens = { ID, NUMBER, PLUS, MINUS, TIMES,
                    DIVIDE, ASSIGN, LPAREN, RPAREN }
 
         # String containing ignored characters between tokens
@@ -108,7 +108,7 @@ When executed, the example will produce the following output::
 A lexer only has one public method ``tokenize()``.  This is a generator
 function that produces a stream of ``Token`` instances.
 The ``type`` and ``value`` attributes of ``Token`` contain the
-token type name and value respectively.  
+token type name and value respectively.
 
 The tokens set
 ^^^^^^^^^^^^^^^
@@ -122,11 +122,11 @@ In the example, the following code specified the token names::
     class CalcLexer(Lexer):
         ...
         # Set of token names.   This is always required
-        tokens = { ID, NUMBER, PLUS, MINUS, TIMES, 
+        tokens = { ID, NUMBER, PLUS, MINUS, TIMES,
                    DIVIDE, ASSIGN, LPAREN, RPAREN }
         ...
 
-Token names should be specified using all-caps as shown. 
+Token names should be specified using all-caps as shown.
 
 Specification of token match patterns
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -139,7 +139,7 @@ names of the tokens provided in the ``tokens`` set.  For example::
     MINUS = r'-'
 
 Regular expression patterns are compiled using the ``re.VERBOSE`` flag
-which can be used to help readability.  However, 
+which can be used to help readability.  However,
 unescaped whitespace is ignored and comments are allowed in this mode.
 If your pattern involves whitespace, make sure you use ``\s``.  If you
 need to match the ``#`` character, use ``[#]`` or ``\#``.
@@ -189,8 +189,8 @@ comments and newlines::
         ...
 
     if __name__ == '__main__':
-        data = '''x = 3 + 42 
-                    * (s    # This is a comment 
+        data = '''x = 3 + 42
+                    * (s    # This is a comment
                         - t)'''
         lexer = CalcLexer()
         for tok in lexer.tokenize(data):
@@ -219,7 +219,7 @@ object should be returned as a result. If no value is returned by the
 function, the token is discarded and the next token read.
 
 The ``@_()`` decorator is defined automatically within the ``Lexer``
-class--you don't need to do any kind of special import for it. 
+class--you don't need to do any kind of special import for it.
 It can also accept multiple regular expression rules. For example::
 
     @_(r'0x[0-9a-fA-F]+',
@@ -249,8 +249,8 @@ behavior.
 Token Remapping
 ^^^^^^^^^^^^^^^
 
-Occasionally, you might need to remap tokens based on special cases. 
-Consider the case of matching identifiers such as "abc", "python", or "guido".  
+Occasionally, you might need to remap tokens based on special cases.
+Consider the case of matching identifiers such as "abc", "python", or "guido".
 Certain identifiers such as "if", "else", and "while" might need to be
 treated as special keywords.  To handle this, include token remapping rules when
 writing the lexer like this::
@@ -272,7 +272,7 @@ writing the lexer like this::
         ID['else'] = ELSE
         ID['while'] = WHILE
 
-When parsing an identifier, the special cases will remap certain matching 
+When parsing an identifier, the special cases will remap certain matching
 values to a new token type.  For example, if the value of an identifier is
 "if" above, an ``IF`` token will be generated.
 
@@ -300,7 +300,7 @@ it does record positional information related to each token in the token's
 column information as a separate step.  For instance, you can search
 backwards until you reach the previous newline::
 
-    # Compute column. 
+    # Compute column.
     #     input is the input text string
     #     token is a token instance
     def find_column(text, token):
@@ -389,13 +389,13 @@ some other kind of error handling.
 A More Complete Example
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Here is a more complete example that puts many of these concepts 
+Here is a more complete example that puts many of these concepts
 into practice::
 
     # calclex.py
 
     from sly import Lexer
- 
+
     class CalcLexer(Lexer):
         # Set of token names.   This is always required
         tokens = { NUMBER, ID, WHILE, IF, ELSE, PRINT,
@@ -420,7 +420,7 @@ into practice::
         GE      = r'>='
         GT      = r'>'
         NE      = r'!='
-    
+
         @_(r'\d+')
         def NUMBER(self, t):
             t.value = int(t.value)
@@ -505,7 +505,7 @@ specification like this::
     expr       : expr + term
                | expr - term
                | term
- 
+
     term       : term * factor
                | term / factor
                | factor
@@ -532,7 +532,7 @@ example, given the expression grammar above, you might write the
 specification for the operation of a simple calculator like this::
 
     Grammar                   Action
-    ------------------------  -------------------------------- 
+    ------------------------  --------------------------------
     expr0   : expr1 + term    expr0.val = expr1.val + term.val
             | expr1 - term    expr0.val = expr1.val - term.val
             | term            expr0.val = term.val
@@ -549,7 +549,7 @@ values then propagate according to the actions described above.  For
 example, ``factor.val = int(NUMBER.val)`` propagates the value from
 ``NUMBER`` to ``factor``.  ``term0.val = factor.val`` propagates the
 value from ``factor`` to ``term``.  Rules such as ``expr0.val =
-expr1.val + term1.val`` combine and propagate values further. Just to 
+expr1.val + term1.val`` combine and propagate values further. Just to
 illustrate, here is how values propagate in the expression ``2 + 3 * 4``::
 
      NUMBER.val=2 + NUMBER.val=3 * NUMBER.val=4    # NUMBER -> factor
@@ -560,7 +560,7 @@ illustrate, here is how values propagate in the expression ``2 + 3 * 4``::
      expr.val=2 + term.val=3 * NUMBER.val=4        # NUMBER -> factor
      expr.val=2 + term.val=3 * factor.val=4        # term * factor -> term
      expr.val=2 + term.val=12                      # expr + term -> expr
-     expr.val=14                                   
+     expr.val=14
 
 SLY uses a parsing technique known as LR-parsing or shift-reduce
 parsing.  LR parsing is a bottom up technique that tries to recognize
@@ -1050,7 +1050,7 @@ generate the same set of symbols.  For example::
 
     assignment :  ID EQUALS NUMBER
                |  ID EQUALS expr
-           
+
     expr       : expr PLUS expr
                | expr MINUS expr
                | expr TIMES expr
@@ -1101,7 +1101,7 @@ states to the file you specify.  Each state of the parser is shown
 as output that looks something like this::
 
     state 2
-    
+
         (7) factor -> LPAREN . expr RPAREN
         (1) expr -> . term
         (2) expr -> . expr MINUS term
@@ -1113,7 +1113,7 @@ as output that looks something like this::
         (8) factor -> . NUMBER
         LPAREN          shift and go to state 2
         NUMBER          shift and go to state 3
-    
+
         factor                         shift and go to state 1
         term                           shift and go to state 4
         expr                           shift and go to state 6
@@ -1127,7 +1127,7 @@ usually track down the source of most parsing conflicts.  It should
 also be stressed that not all shift-reduce conflicts are bad.
 However, the only way to be sure that they are resolved correctly is
 to look at the debugging file.
-  
+
 Syntax Error Handling
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -1212,7 +1212,7 @@ appear as the last token on the right in an error rule.  For example::
 This is because the first bad token encountered will cause the rule to
 be reduced--which may make it difficult to recover if more bad tokens
 immediately follow.    It's better to have some kind of landmark such as
-a semicolon, closing parenthesese, or other token that can be used as
+a semicolon, closing parentheses, or other token that can be used as
 a synchronization point.
 
 Panic mode recovery
@@ -1236,7 +1236,7 @@ state::
         # Read ahead looking for a closing '}'
         while True:
             tok = next(self.tokens, None)
-            if not tok or tok.type == 'RBRACE': 
+            if not tok or tok.type == 'RBRACE':
                 break
         self.restart()
 
@@ -1271,12 +1271,12 @@ useful if trying to synchronize on special characters.  For example::
         # Read ahead looking for a terminating ";"
         while True:
             tok = next(self.tokens, None)           # Get the next token
-            if not tok or tok.type == 'SEMI': 
+            if not tok or tok.type == 'SEMI':
                 break
             self.errok()
 
         # Return SEMI to the parser as the next lookahead token
-        return tok  
+        return tok
 
 When Do Syntax Errors Get Reported?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1339,7 +1339,7 @@ are many possible ways to do this, but one example is something
 like this::
 
     @_('expr PLUS expr',
-       'expr MINUS expr', 
+       'expr MINUS expr',
        'expr TIMES expr',
        'expr DIVIDE expr')
     def expr(self, p):
@@ -1357,7 +1357,7 @@ Another approach is to create a set of data structure for different
 kinds of abstract syntax tree nodes and create different node types
 in each rule::
 
-    class Expr: 
+    class Expr:
         pass
 
     class BinOp(Expr):
@@ -1371,7 +1371,7 @@ in each rule::
             self.value = value
 
     @_('expr PLUS expr',
-       'expr MINUS expr', 
+       'expr MINUS expr',
        'expr TIMES expr',
        'expr DIVIDE expr')
     def expr(self, p):
@@ -1494,7 +1494,7 @@ C code, you might write code like this::
         # Action code
         ...
         pop_scope()        # Return to previous scope
-    
+
     @_('')
     def new_scope(self, p):
         # Create a new scope for local variables
