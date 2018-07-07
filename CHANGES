@@ -36,7 +36,7 @@ Version 0.3
            PLUS token in the base class.  Thus, an input text of '++'
            will be parsed as a single token PLUSPLUS, not two PLUS tokens.
 
-4/1/2018   Better support lexing states.   Each lexing state can be defined as
+4/1/2018   Better support for lexing states.   Each lexing state can be defined as
            as a separate class.  Use the begin(cls) method to switch to a
            different state.  For example:
 
