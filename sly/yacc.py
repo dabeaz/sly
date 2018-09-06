@@ -144,7 +144,10 @@ class YaccProduction:
         raise AttributeError('No index attribute found')
 
     def __getattr__(self, name):
-        return self._slice[self._namemap[name]].value
+        if name in self._namemap:
+            return self._slice[self._namemap[name]].value
+        else:
+            raise AttributeError(f'No symbol {name}')
 
     def __setattr__(self, name, value):
         if name[0:1] == '_' or name not in self._namemap:

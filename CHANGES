@@ -1,3 +1,8 @@
+Version 0.4
+-----------
+9/5/2018   Added support for getattr() and related functions on
+           productions.
+
 Version 0.3
 -----------
 4/1/2018   Support for Lexer inheritance added.  For example:
