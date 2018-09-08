@@ -1,5 +1,8 @@
 Version 0.4
 -----------
+9/8/2018   Fixed Issue #14.  YaccProduction index property causes
+           AttributeError if index is 0
+
 9/5/2018   Added support for getattr() and related functions on
            productions.
 

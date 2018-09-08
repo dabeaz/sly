@@ -139,7 +139,7 @@ class YaccProduction:
             if isinstance(tok, YaccSymbol):
                 continue
             index = getattr(tok, 'index', None)
-            if index:
+            if index is not None:
                 return index
         raise AttributeError('No index attribute found')
 
