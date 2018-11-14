@@ -1699,8 +1699,9 @@ class Parser(metaclass=ParserMeta):
             fail = True
 
         unused_terminals = grammar.unused_terminals()
-        for term in unused_terminals:
-            cls.log.warning('Token %r defined, but not used', term)
+        if unused_terminals:
+            unused_str = '{' + ','.join(unused_terminals) + '}'
+            cls.log.warning(f'Token{"(s)" if len(unused_terminals) >1 else ""} {unused_str} defined, but not used')
 
         unused_rules = grammar.unused_rules()
         for prod in unused_rules:
