@@ -103,6 +103,7 @@ class YaccSymbol:
 # ----------------------------------------------------------------------
 
 class YaccProduction:
+    __slots__ = ('_slice', '_namemap', '_stack')
     def __init__(self, s, stack=None):
         self._slice = s
         self._namemap = { }
@@ -147,7 +148,8 @@ class YaccProduction:
         if name in self._namemap:
             return self._slice[self._namemap[name]].value
         else:
-            raise AttributeError(f'No symbol {name}')
+            nameset = '{' + ', '.join(self._namemap) + '}'
+            raise AttributeError(f'No symbol {name}. Must be one of {nameset}.')
 
     def __setattr__(self, name, value):
         if name[0:1] == '_' or name not in self._namemap:
@@ -389,7 +391,7 @@ class Grammar(object):
         if term in self.Precedence:
             raise GrammarError(f'Precedence already specified for terminal {term!r}')
         if assoc not in ['left', 'right', 'nonassoc']:
-            raise GrammarError("Associativity must be one of 'left','right', or 'nonassoc'")
+            raise GrammarError(f"Associativity of {term!r} must be one of 'left','right', or 'nonassoc'")
         self.Precedence[term] = (assoc, level)
 
     # -----------------------------------------------------------------------------
@@ -1562,6 +1564,8 @@ class ParserMetaDict(dict):
     def __setitem__(self, key, value):
         if key in self and callable(value) and hasattr(value, 'rules'):
             value.next_func = self[key]
+            if not hasattr(value.next_func, 'rules'):
+                raise GrammarError(f'Redefinition of {key}. Perhaps an earlier {key} is missing @_')
         super().__setitem__(key, value)
     
     def __getitem__(self, key):
@@ -1659,11 +1663,10 @@ class Parser(metaclass=ParserMeta):
         Build the grammar from the grammar rules
         '''
         grammar_rules = []
-        fail = False
+        errors = ''
         # Check for non-empty symbols
         if not rules:
-            cls.log.error('no grammar rules are defined')
-            return False
+            raise YaccError('No grammar rules are defined')
 
         grammar = Grammar(cls.tokens)
 
@@ -1672,8 +1675,7 @@ class Parser(metaclass=ParserMeta):
             try:
                 grammar.set_precedence(term, assoc, level)
             except GrammarError as e:
-                cls.log.error(str(e))
-                fail = True
+                errors += f'{e}\n'
 
         for name, func in rules:
             try:
@@ -1682,21 +1684,17 @@ class Parser(metaclass=ParserMeta):
                     try:
                         grammar.add_production(prodname, syms, pfunc, rulefile, ruleline)
                     except GrammarError as e:
-                        cls.log.error(str(e))
-                        fail = True
+                        errors += f'{e}\n'
             except SyntaxError as e:
-                cls.log.error(str(e))
-                fail = True
+                errors += f'{e}\n'
         try:
             grammar.set_start(getattr(cls, 'start', None))
         except GrammarError as e:
-            cls.log.error(str(e))
-            fail = True
+            errors += f'{e}\n'
 
         undefined_symbols = grammar.undefined_symbols()
         for sym, prod in undefined_symbols:
-            cls.log.error(f'%s:%d: Symbol %r used, but not defined as a token or a rule', prod.file, prod.line, sym)
-            fail = True
+            errors += '%s:%d: Symbol %r used, but not defined as a token or a rule\n' % (prod.file, prod.line, sym)
 
         unused_terminals = grammar.unused_terminals()
         if unused_terminals:
@@ -1723,16 +1721,15 @@ class Parser(metaclass=ParserMeta):
 
         infinite = grammar.infinite_cycles()
         for inf in infinite:
-            cls.log.error('Infinite recursion detected for symbol %r', inf)
-            fail = True
+            errors += 'Infinite recursion detected for symbol %r\n' % inf
 
         unused_prec = grammar.unused_precedence()
         for term, assoc in unused_prec:
-            cls.log.error('Precedence rule %r defined for unknown symbol %r', assoc, term)
-            fail = True
+            errors += 'Precedence rule %r defined for unknown symbol %r\n' % (assoc, term)
 
         cls._grammar = grammar
-        return not fail
+        if errors:
+            raise YaccError('Unable to build grammar.\n'+errors)
 
     @classmethod
     def __build_lrtables(cls):
@@ -1786,8 +1783,7 @@ class Parser(metaclass=ParserMeta):
             raise YaccError('Invalid parser specification')
 
         # Build the underlying grammar object
-        if not cls.__build_grammar(rules):
-            raise YaccError('Invalid grammar')
+        cls.__build_grammar(rules)
 
         # Build the LR tables
         if not cls.__build_lrtables():
