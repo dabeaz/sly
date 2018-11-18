@@ -35,7 +35,6 @@ import sys
 import inspect
 from collections import OrderedDict, defaultdict
 
-__version__    = '0.3'
 __all__        = [ 'Parser' ]
 
 class YaccError(Exception):

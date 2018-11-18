@@ -11,7 +11,7 @@ setup(name = "sly",
 SLY is an implementation of lex and yacc for Python 3.
 """,
             license="""BSD""",
-            version = "0.3",
+            version = "0.4",
             author = "David Beazley",
             author_email = "dave@dabeaz.com",
             maintainer = "David Beazley",
