@@ -1353,7 +1353,7 @@ like this::
     def expr(self, p):
         return ('number-expression', p.NUMBER)
 
-Another approach is to create a set of data structure for different
+Another approach is to create a set of data structures for different
 kinds of abstract syntax tree nodes and create different node types
 in each rule::
 
