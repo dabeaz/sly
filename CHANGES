@@ -1,5 +1,26 @@
 Version 0.4
 -----------
+11/18/2018 Various usability fixes observed from last compilers course.
+
+            - Errors encountered during grammar construction are now
+              reported as part of the raised GrammarError exception
+              instead of via logging.  This places them in the same
+              visual position as normal Python errors (at the end
+              of the traceback)
+
+            - Repeated warning messages about unused tokens have
+              been consolidated in a single warning message to make
+              the output less verbose.
+
+            - Grammar attributes (e.g., p.TOKEN) used during parsing
+              are now read-only.
+
+            - The error about "infinite recursion" is only checked
+              if there are no undefined grammar symbols.  Sometimes
+              you'd get this message and be confused when the only
+              mistake was a bad token name or similar. 
+          
+
 9/8/2018   Fixed Issue #14.  YaccProduction index property causes
            AttributeError if index is 0
 

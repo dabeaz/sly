@@ -152,10 +152,10 @@ class YaccProduction:
             raise AttributeError(f'No symbol {name}. Must be one of {nameset}.')
 
     def __setattr__(self, name, value):
-        if name[0:1] == '_' or name not in self._namemap:
+        if name[:1] == '_':
             super().__setattr__(name, value)
         else:
-            self._slice[self._namemap[name]].value = value
+            raise AttributeError(f"Can't reassign the value of attribute {name!r}")
 
 # -----------------------------------------------------------------------------
 #                          === Grammar Representation ===
@@ -1719,9 +1719,10 @@ class Parser(metaclass=ParserMeta):
         for u in unreachable:
            cls.log.warning('Symbol %r is unreachable', u)
 
-        infinite = grammar.infinite_cycles()
-        for inf in infinite:
-            errors += 'Infinite recursion detected for symbol %r\n' % inf
+        if len(undefined_symbols) == 0:
+            infinite = grammar.infinite_cycles()
+            for inf in infinite:
+                errors += 'Infinite recursion detected for symbol %r\n' % inf
 
         unused_prec = grammar.unused_precedence()
         for term, assoc in unused_prec:
@@ -1806,11 +1807,11 @@ class Parser(metaclass=ParserMeta):
         if token:
             lineno = getattr(token, 'lineno', 0)
             if lineno:
-                sys.stderr.write(f'yacc: Syntax error at line {lineno}, token={token.type}\n')
+                sys.stderr.write(f'sly: Syntax error at line {lineno}, token={token.type}\n')
             else:
-                sys.stderr.write(f'yacc: Syntax error, token={token.type}')
+                sys.stderr.write(f'sly: Syntax error, token={token.type}')
         else:
-            sys.stderr.write('yacc: Parse error in input. EOF\n')
+            sys.stderr.write('sly: Parse error in input. EOF\n')
  
     def errok(self):
         '''
@@ -1995,4 +1996,4 @@ class Parser(metaclass=ParserMeta):
                 continue
 
             # Call an error function here
-            raise RuntimeError('yacc: internal parser error!!!\n')
+            raise RuntimeError('sly: internal parser error!!!\n')
