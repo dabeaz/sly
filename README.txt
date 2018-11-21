@@ -158,7 +158,7 @@ expressions and store variables:
 
         @_('NUMBER')
         def expr(self, p):
-            return p.NUMBER
+            return int(p.NUMBER)
 
         @_('NAME')
         def expr(self, p):
