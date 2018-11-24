@@ -1,6 +1,5 @@
 Contributing to SLY
 ===================
-
 SLY, like most projects related to parser generators, is a niche
 project.  Although it appears to be a somewhat "new" project, it is
 actually an outgrowth of the PLY project which has been around since
@@ -17,7 +16,6 @@ merge.
 
 Project Scope
 -------------
-
 It is not my goal to turn SLY into a gigantic parsing framework with
 every possible feature.  What you see here is pretty much what it is--a
 basic LALR(1) parser generator and tokenizer.  If you've built something
@@ -27,7 +25,6 @@ file that includes a link to your project.
 
 The SLY "Community" (or lack thereof)
 -------------------------------------
-
 As noted, parser generator tools are a highly niche area.  It is
 important to emphasize that SLY is a very much a side-project for
 me. No funding is received for this work.  I also run a business and
