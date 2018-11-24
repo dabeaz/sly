@@ -34,19 +34,19 @@ implements the LALR(1) parsing algorithm, commonly used for
 parsing and compiling various programming languages. 
 
 Requirements
-============
+------------
 
 SLY requires the use of Python 3.6 or greater.  Older versions
 of Python are not supported.
 
 An Example
-==========
+----------
 
 SLY is probably best illustrated by an example.  Here's what it
 looks like to write a parser that can evaluate simple arithmetic
 expressions and store variables:
 
-.. code::python
+.. code:: python
 
     # -----------------------------------------------------------------------------
     # calc.py
@@ -150,12 +150,17 @@ expressions and store variables:
                 parser.parse(lexer.tokenize(text))
 
 Documentation
-=============
+-------------
 
 Further documentation can be found at `https://sly.readthedocs.io/en/latest <https://sly.readthedocs.io/en/latest>`_.
 
+Talks
+-----
+
+* `Reinventing the Parser Generator <https://www.youtube.com/watch?v=zJ9z6Ge-vXs>`_, talk by David Beazley at PyCon 2017, Cleveland.
+
 Resources
-=========
+---------
 
 For a detailed overview of parsing theory, consult the excellent
 book "Compilers : Principles, Techniques, and Tools" by Aho, Sethi, and
@@ -173,7 +178,8 @@ me on Twitter (@dabeaz).
 -- Dave
 
 P.S.
-====
+----
+
 You should come take a `course <https://www.dabeaz.com/courses.html>`_!
 
 
