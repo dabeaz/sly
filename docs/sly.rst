@@ -385,6 +385,25 @@ might be useful if the parser wants to see error tokens for some
 reason--perhaps for the purposes of improved error messages or
 some other kind of error handling.
 
+Third-Party Regex Module
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. versionadded:: 0.4
+
+The third-party `regex <https://pypi.org/project/regex/>`_ module can be used
+with sly. Like this::
+
+    from sly import Lexer
+    import regex
+
+    class MyLexer(Lexer):
+        regex_module = regex
+        ...
+
+Now all regular expressions that ``MyLexer`` uses will be handled with the
+``regex`` module. The ``regex_module`` can be set to any module that is
+compatible with Python's standard library ``re``.
+
 
 A More Complete Example
 ^^^^^^^^^^^^^^^^^^^^^^^

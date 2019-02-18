@@ -3,7 +3,7 @@ try:
 except ImportError:
     from distutils.core import setup
 
-tests_require = ['pytest']
+tests_require = ['pytest', 'regex']
 
 setup(name = "sly",
             description="SLY - Sly Lex Yacc",

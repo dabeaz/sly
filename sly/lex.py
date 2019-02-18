@@ -186,6 +186,7 @@ class Lexer(metaclass=LexerMeta):
     literals = set()
     ignore = ''
     reflags = 0
+    regex_module = re
 
     _token_names = set()
     _token_funcs = {}
@@ -307,7 +308,7 @@ class Lexer(metaclass=LexerMeta):
 
             # Make sure the individual regex compiles properly
             try:
-                cpat = re.compile(part, cls.reflags)
+                cpat = cls.regex_module.compile(part, cls.reflags)
             except Exception as e:
                 raise PatternError(f'Invalid regex for token {tokname}') from e
 
@@ -322,8 +323,8 @@ class Lexer(metaclass=LexerMeta):
 
         # Form the master regular expression
         #previous = ('|' + cls._master_re.pattern) if cls._master_re else ''
-        # cls._master_re = re.compile('|'.join(parts) + previous, cls.reflags)
-        cls._master_re = re.compile('|'.join(parts), cls.reflags)
+        # cls._master_re = cls.regex_module.compile('|'.join(parts) + previous, cls.reflags)
+        cls._master_re = cls.regex_module.compile('|'.join(parts), cls.reflags)
 
         # Verify that that ignore and literals specifiers match the input type
         if not isinstance(cls.ignore, str):
