@@ -1,5 +1,10 @@
 Version 0.4
 -----------
+04/09/2019 Minor refinement to the reporting of reduce/reduce conflicts.
+           If a top grammar rule wasn't specified, SLY could fail with 
+           a mysterious "unknown conflict" exception.  This should be
+           fixed.
+
 11/18/2018 Various usability fixes observed from last compilers course.
 
             - Errors encountered during grammar construction are now

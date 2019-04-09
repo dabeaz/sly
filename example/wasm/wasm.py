@@ -11,52 +11,65 @@ import enum
 from collections import defaultdict
 import json
 
-# ------------------------------------------------------------
-# Low level encoding of values
-
 def encode_unsigned(value):
     '''
     Produce an LEB128 encoded unsigned integer.
     '''
-    bits = bin(value)[2:]
-    if len(bits) % 7:
-        bits = '0'*(7 - len(bits) % 7) + bits
-
-    parts = [ bits[i:i+7] for i in range(0,len(bits), 7) ]
-    parts = [ parts[0], *['1'+p for p in parts[1:]] ]
-    parts = [ int(p, 2) for p in parts ]
-    return bytes(parts[::-1])
-
-assert encode_unsigned(624485) == bytes([0xe5, 0x8e, 0x26])
+    parts = []
+    while value:
+        parts.append((value & 0x7f) | 0x80)
+        value >>= 7
+    if not parts:
+        parts.append(0)
+    parts[-1] &= 0x7f
+    return bytes(parts)
 
 def encode_signed(value):
     '''
     Produce a LEB128 encoded signed integer.
     '''
-    if value > 0:
-        return encode_unsigned(value)
+    parts = [ ]
+    if value < 0:
+        # Sign extend the value up to a multiple of 7 bits
+        value = (1 << (value.bit_length() + (7 - value.bit_length() % 7))) + value
+        negative = True
+    else:
+        negative = False
+    while value:
+        parts.append((value & 0x7f) | 0x80)
+        value >>= 7
+    if not parts or (not negative and parts[-1] & 0x40):
+        parts.append(0)
+    parts[-1] &= 0x7f
+    return bytes(parts)
 
-    bits = bin(~(~0 << value.bit_length()) & value)[2:]
-    bits = '1'+ '0'*(value.bit_length() - len(bits)) + bits
-    if len(bits) % 7:
-        bits = '1'*(7 - len(bits) % 7) + bits
-    return encode_unsigned(int(bits,2))
-
+assert encode_unsigned(624485) == bytes([0xe5, 0x8e, 0x26])
+assert encode_unsigned(127) == bytes([0x7f])
 assert encode_signed(-624485) == bytes([0x9b, 0xf1, 0x59])
+assert encode_signed(127) == bytes([0xff, 0x00])
 
-def encode_float64(value):
+def encode_f64(value):
+    '''
+    Encode a 64-bit floating point as little endian
+    '''
     return struct.pack('<d', value)
 
-def encode_float32(value):
+def encode_f32(value):
+    '''
+    Encode a 32-bit floating point as little endian.
+    '''
     return struct.pack('<f', value)
 
 def encode_name(value):
+    '''
+    Encode a name as UTF-8
+    '''
     data = value.encode('utf-8')
-    return encode_vector(list(data[i:i+1] for i in range(len(data))))
+    return encode_vector(data)
 
 def encode_vector(items):
     '''
-    Items is a list of encoded values
+    Items is a list of encoded value or bytess
     '''
     if isinstance(items, bytes):
         return encode_unsigned(len(items)) + items
@@ -409,13 +422,13 @@ class F32OpBuilder(OpBuilder):
     _optable = f32
 
     def const(self, value):
-        self._append([self._optable.const, *encode_float32(value)])
+        self._append([self._optable.const, *encode_f32(value)])
 
 class F64OpBuilder(OpBuilder):
     _optable = f64
 
     def const(self, value):
-        self._append([self._optable.const, *encode_float64(value)])
+        self._append([self._optable.const, *encode_f64(value)])
 
 def _flatten(instr):
     for x in instr:

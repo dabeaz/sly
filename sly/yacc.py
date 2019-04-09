@@ -1414,7 +1414,7 @@ class LRTable(object):
                                             if not rlevel:
                                                 descrip.append(f'  ! shift/reduce conflict for {a} resolved as shift')
                                                 self.sr_conflicts.append((st, a, 'shift'))
-                                    elif r < 0:
+                                    elif r <= 0:
                                         # Reduce/reduce conflict.   In this case, we favor the rule
                                         # that was defined first in the grammar file
                                         oldp = Productions[-r]
@@ -1451,7 +1451,7 @@ class LRTable(object):
                                     if r > 0:
                                         if r != j:
                                             raise LALRError(f'Shift/shift conflict in state {st}')
-                                    elif r < 0:
+                                    elif r <= 0:
                                         # Do a precedence check.
                                         #   -  if precedence of reduce rule is higher, we reduce.
                                         #   -  if precedence of reduce is same and left assoc, we reduce.
