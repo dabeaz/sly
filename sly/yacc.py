@@ -486,6 +486,9 @@ class Grammar(object):
     # -----------------------------------------------------------------------------
 
     def set_start(self, start=None):
+        if callable(start):
+            start = start.__name__
+
         if not start:
             start = self.Productions[1].name
 

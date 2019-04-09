@@ -1,5 +1,9 @@
 Version 0.4
 -----------
+04/09/2019 Fixed very mysterious error message that resulted if you 
+           defined a grammar rule called "start".   start can now 
+           be a string or a function.
+
 04/09/2019 Minor refinement to the reporting of reduce/reduce conflicts.
            If a top grammar rule wasn't specified, SLY could fail with 
            a mysterious "unknown conflict" exception.  This should be
