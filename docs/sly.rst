@@ -301,7 +301,7 @@ column information as a separate step.  For instance, you can search
 backwards until you reach the previous newline::
 
     # Compute column.
-    #     input is the input text string
+    #     text is the input text string
     #     token is a token instance
     def find_column(text, token):
         last_cr = text.rfind('\n', 0, token.index)
