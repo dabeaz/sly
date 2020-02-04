@@ -1797,6 +1797,7 @@ class Parser(metaclass=ParserMeta):
                 f.write(str(cls._grammar))
                 f.write('\n')
                 f.write(str(cls._lrtable))
+                f.write('\n')
             cls.log.info('Parser debugging for %s written to %s', cls.__qualname__, cls.debugfile)
 
     # ----------------------------------------------------------------------
