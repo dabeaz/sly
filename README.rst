@@ -157,7 +157,7 @@ Further documentation can be found at `https://sly.readthedocs.io/en/latest <htt
 Talks
 -----
 
-* `Reinventing the Parser Generator <https://www.youtube.com/watch?v=zJ9z6Ge-vXs>`_, talk by David Beazley at PyCon 2017, Cleveland.
+* `Reinventing the Parser Generator <https://www.youtube.com/watch?v=zJ9z6Ge-vXs>`_, talk by David Beazley at PyCon 2018, Cleveland.
 
 Resources
 ---------
