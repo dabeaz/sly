@@ -883,7 +883,7 @@ it is to enclose one more more symbols in [ ] like this::
         if p.item is not None:
              print("item was given and has value", p.item)
 	else:
-             print("item was not given"
+             print("item was not given")
 
     @_('whatever')
     def item(self, p):
@@ -900,8 +900,9 @@ list of comma separated expressions.  To parse that, you could write::
         return [p.expr0] + p.expr1
 
 In this example, the ``{ COMMA expr }`` represents zero or more repetitions
-of a rule.  The value of all symbols inside is now a list.  So, ``p.expr``
-is a list of all expressions matched.   
+of a rule.  The value of all symbols inside is now a list.  So, ``p.expr1``
+is a list of all expressions matched.   Note, when duplicate symbol names 
+appear in a rule, they are distinguished by appending a numeric index as shown. 
 
 Dealing With Ambiguous Grammars
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
