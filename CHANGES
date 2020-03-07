@@ -6,26 +6,27 @@ Version 0.5
 
                @('expr { COMMA expr }')
                def exprlist(p):
-                   return [ p.expr ] + [e.expr for e in p[1]]
+                   return [ p.expr0 ] + p.expr1
 
            In this code, the { ... } means zero-or-more repetitions.
-           It produces a list of matches that must be accessed by
-           position index (p[1] in this example. p[0] is 'expr').
-	   The elements of the list are named tuples with attribute
-           names that match the enclosed grammar symbols (e.g., e.expr
-           in the example).
+           It turns all symbols inside into lists.  So, instead of
+           representing a single value, p.expr1 is now a list of 
+           values.  
 
            An optional value can be enclosed in brackets like this:
 
-              @('NAME LPAREN [ exprlist ] RPAREN')
-              def function_call(p):
-                  args = p[2] if p[2] else []
-                  name = p.NAME
-                  print('Calling:', name, args)
+              @('VAR NAME [ EQUAL expr ] SEMI')
+              def variable_declaration(p):
+                  print(f"Definining {p.NAME}. Initial value={p.expr}")
 
-           In this case, p[2] contains the optional value.  If not present,
-           the value is None.  If present, it is a tuple of values 
-           or a single value (if only one symbol). 
+           In this case, all symbols inside [ ... ] either have a value
+           if present or are assigned to None if missing.
+
+           In both cases, you continue to use the same name indexing
+           scheme used by the rest of SLY.  For example, in the first
+           example above, you use "expr0" and "expr1" to refer to the
+           different "expr" symbols since that name appears in more
+           than one place.
 
 Version 0.4
 -----------

@@ -56,11 +56,11 @@ class CalcParser(Parser):
 
     @_('ID "(" [ arglist ] ")"')
     def statement(self, p):
-        return (p.ID, p[2])
+        return (p.ID, p.arglist)
 
     @_('expr { COMMA expr }')
     def arglist(self, p):
-        return [p.expr, *[e.expr for e in p[1]]]
+        return [p.expr0, *p.expr1]
 
     @_('expr')
     def statement(self, p):

@@ -871,6 +871,38 @@ string. However,writing an "empty" rule and using "empty" to denote an
 empty production may be easier to read and more clearly state your
 intention.
 
+EBNF Features (Optionals and Repeats)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Certain grammar features occur with some frequency.  For example, suppose you want to
+have an optional item as shown in the previous section.  An alternate way to specify
+it is to enclose one more more symbols in [ ] like this::
+
+    @_('[ item ] grok')
+    def spam(self, p):
+        if p.item is not None:
+             print("item was given and has value", p.item)
+	else:
+             print("item was not given"
+
+    @_('whatever')
+    def item(self, p):
+        ...
+
+In this case, the value of ``p.item`` is set to ``None`` if the value wasn't supplied.
+Otherwise, it will have the value returned by the ``item`` rule below.
+
+You can also encode repetitions.  For example, a common construction is a 
+list of comma separated expressions.  To parse that, you could write::
+
+    @_('expr { COMMA expr }')
+    def exprlist(self, p):
+        return [p.expr0] + p.expr1
+
+In this example, the ``{ COMMA expr }`` represents zero or more repetitions
+of a rule.  The value of all symbols inside is now a list.  So, ``p.expr``
+is a list of all expressions matched.   
+
 Dealing With Ambiguous Grammars
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
