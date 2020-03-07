@@ -33,7 +33,7 @@
 
 import sys
 import inspect
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict, defaultdict, namedtuple
 
 __all__        = [ 'Parser' ]
 
@@ -1551,14 +1551,166 @@ def _collect_grammar_rules(func):
         lineno = unwrapped.__code__.co_firstlineno
         for rule, lineno in zip(func.rules, range(lineno+len(func.rules)-1, 0, -1)):
             syms = rule.split()
+            ebnf_prod = []
+            while ('{' in syms) or ('[' in syms):
+                for s in syms:
+                    if s == '[':
+                        syms, prod = _replace_ebnf_optional(syms)
+                        ebnf_prod.extend(prod)
+                        break
+                    elif s == '{':
+                        syms, prod = _replace_ebnf_repeat(syms)
+                        ebnf_prod.extend(prod)
+                        break
+
             if syms[1:2] == [':'] or syms[1:2] == ['::=']:
                 grammar.append((func, filename, lineno, syms[0], syms[2:]))
             else:
                 grammar.append((func, filename, lineno, prodname, syms))
+            grammar.extend(ebnf_prod)
+            
         func = getattr(func, 'next_func', None)
 
     return grammar
 
+# Replace EBNF repetition
+def _replace_ebnf_repeat(syms):
+    syms = list(syms)
+    first = syms.index('{')
+    end = syms.index('}', first)
+    symname, prods = _generate_repeat_rules(syms[first+1:end])
+    syms[first:end+1] = [symname]
+    return syms, prods
+
+def _replace_ebnf_optional(syms):
+    syms = list(syms)
+    first = syms.index('[')
+    end = syms.index(']', first)
+    symname, prods = _generate_optional_rules(syms[first+1:end])
+    syms[first:end+1] = [symname]
+    return syms, prods
+                
+# Generate grammar rules for repeated items
+_gencount = 0
+
+def _unique_names(names):
+    from collections import defaultdict, Counter
+    counts = Counter(names)
+    indices = defaultdict(int)
+    newnames = []
+    for name in names:
+        if counts[name] == 1:
+            newnames.append(name)
+        else:
+            newnames.append(f'{name}{indices[name]}')
+            indices[name] += 1
+    return newnames
+
+def _generate_repeat_rules(symbols):
+    '''
+    Symbols is a list of grammar symbols [ symbols ]. This
+    generates code corresponding to these grammar construction:
+  
+       @('repeat : many')
+       def repeat(self, p):
+           return p.many
+
+       @('repeat :')
+       def repeat(self, p):
+           return []
+
+       @('many : many symbols')
+       def many(self, p):
+           p.many.append(symbols)
+           return p.many
+
+       @('many : symbols')
+       def many(self, p):
+           return [ p.symbols ]
+    '''
+    global _gencount
+    _gencount += 1
+    name = f'_{_gencount}_repeat'
+    oname = f'_{_gencount}_items'
+    iname = f'_{_gencount}_item'
+    symtext = ' '.join(symbols)
+
+    productions = [ ]
+    _ = _decorator
+
+    @_(f'{name} : {oname}')
+    def repeat(self, p):
+        return getattr(p, oname)
+
+    @_(f'{name} : ')
+    def repeat2(self, p):
+        return []
+    productions.extend(_collect_grammar_rules(repeat))
+    productions.extend(_collect_grammar_rules(repeat2))
+
+    @_(f'{oname} : {oname} {iname}')
+    def many(self, p):
+        items = getattr(p, oname)
+        items.append(getattr(p, iname))
+        return items
+
+    @_(f'{oname} : {iname}')
+    def many2(self, p):
+        return [ getattr(p, iname) ]
+
+    productions.extend(_collect_grammar_rules(many))
+    productions.extend(_collect_grammar_rules(many2))
+
+    utuple = namedtuple('syms', _unique_names(symbols))
+
+    @_(f'{iname} : {symtext}')
+    def item(self, p):
+        if len(p) == 1:
+            return p[0]
+        else:
+            return utuple(*p)
+
+    productions.extend(_collect_grammar_rules(item))
+    return name, productions
+
+def _generate_optional_rules(symbols):
+    '''
+    Symbols is a list of grammar symbols [ symbols ]. This
+    generates code corresponding to these grammar construction:
+  
+       @('optional : symbols')
+       def optional(self, p):
+           return p.symbols
+
+       @('optional :')
+       def optional(self, p):
+           return None
+    '''
+    global _gencount
+    _gencount += 1
+    name = f'_{_gencount}_optional'
+    symtext = ' '.join(symbols)
+    
+    productions = [ ]
+    _ = _decorator
+
+    utuple = namedtuple('syms', _unique_names(symbols))
+
+    @_(f'{name} : {symtext}')
+    def optional(self, p):
+        if len(p) == 1:
+            return p[0]
+        else:
+            return utuple(*p)
+
+    @_(f'{name} : ')
+    def optional2(self, p):
+        return None
+
+    productions.extend(_collect_grammar_rules(optional))
+    productions.extend(_collect_grammar_rules(optional2))
+    return name, productions
+    
 class ParserMetaDict(dict):
     '''
     Dictionary that allows decorated grammar rule functions to be overloaded
@@ -1576,17 +1728,24 @@ class ParserMetaDict(dict):
         else:
             return super().__getitem__(key)
 
+def _decorator(rule, *extra):
+     rules = [rule, *extra]
+     def decorate(func):
+         func.rules = [ *getattr(func, 'rules', []), *rules[::-1] ]
+         return func
+     return decorate
+
 class ParserMeta(type):
     @classmethod
     def __prepare__(meta, *args, **kwargs):
         d = ParserMetaDict()
-        def _(rule, *extra):
-            rules = [rule, *extra]
-            def decorate(func):
-                func.rules = [ *getattr(func, 'rules', []), *rules[::-1] ]
-                return func
-            return decorate
-        d['_'] = _
+#        def _(rule, *extra):
+#            rules = [rule, *extra]
+#            def decorate(func):
+#                func.rules = [ *getattr(func, 'rules', []), *rules[::-1] ]
+#                return func
+#            return decorate
+        d['_'] = _decorator
         return d
 
     def __new__(meta, clsname, bases, attributes):

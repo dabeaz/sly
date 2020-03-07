@@ -3,7 +3,7 @@ from sly import Lexer, Parser
 
 class CalcLexer(Lexer):
     # Set of token names.   This is always required
-    tokens = { ID, NUMBER, PLUS, MINUS, TIMES, DIVIDE, ASSIGN }
+    tokens = { ID, NUMBER, PLUS, MINUS, TIMES, DIVIDE, ASSIGN, COMMA }
     literals = { '(', ')' }
 
     # String containing ignored characters between tokens
@@ -16,6 +16,7 @@ class CalcLexer(Lexer):
     TIMES   = r'\*'
     DIVIDE  = r'/'
     ASSIGN  = r'='
+    COMMA   = r','
 
     @_(r'\d+')
     def NUMBER(self, t):
@@ -52,6 +53,14 @@ class CalcParser(Parser):
     @_('ID ASSIGN expr')
     def statement(self, p):
         self.names[p.ID] = p.expr
+
+    @_('ID "(" [ arglist ] ")"')
+    def statement(self, p):
+        return (p.ID, p[2])
+
+    @_('expr { COMMA expr }')
+    def arglist(self, p):
+        return [p.expr, *[e.expr for e in p[1]]]
 
     @_('expr')
     def statement(self, p):
@@ -108,6 +117,18 @@ def test_simple():
 
     result = parser.parse(lexer.tokenize('3 + 4 * (5 + 6)'))
     assert result == 47
+
+def test_ebnf():
+    lexer = CalcLexer()
+    parser = CalcParser()
+    result = parser.parse(lexer.tokenize('a()'))
+    assert result == ('a', None)
+
+    result = parser.parse(lexer.tokenize('a(2+3)'))
+    assert result == ('a', [5])
+
+    result = parser.parse(lexer.tokenize('a(2+3, 4+5)'))
+    assert result == ('a', [5, 9])
 
 def test_parse_error():
     lexer = CalcLexer()

@@ -360,6 +360,7 @@ class Lexer(metaclass=LexerMeta):
     def tokenize(self, text, lineno=1, index=0):
         _ignored_tokens = _master_re = _ignore = _token_funcs = _literals = _remapping = None
 
+        # --- Support for state changes
         def _set_state(cls):
             nonlocal _ignored_tokens, _master_re, _ignore, _token_funcs, _literals, _remapping
             _ignored_tokens = cls._ignored_tokens
@@ -371,8 +372,26 @@ class Lexer(metaclass=LexerMeta):
 
         self.__set_state = _set_state
         _set_state(type(self))
-        self.text = text
 
+        # --- Support for backtracking
+        _mark_stack = []
+        def _mark():
+            _mark_stack.append((type(self), index, lineno))
+        self.mark = _mark
+
+        def _accept():
+            _mark_stack.pop()
+        self.accept = _accept
+
+        def _reject():
+            nonlocal index, lineno
+            cls, index, lineno = _mark_stack[-1]
+            _set_state(cls)
+        self.reject = _reject
+
+
+        # --- Main tokenization function
+        self.text = text
         try:
             while True:
                 try:

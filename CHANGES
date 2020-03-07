@@ -1,3 +1,32 @@
+Version 0.5
+-----------
+03/06/2020 Added experimental support for EBNF repetition and optional
+           syntax.  For example, here is a rule for a comma-separated
+           expression list:
+
+               @('expr { COMMA expr }')
+               def exprlist(p):
+                   return [ p.expr ] + [e.expr for e in p[1]]
+
+           In this code, the { ... } means zero-or-more repetitions.
+           It produces a list of matches that must be accessed by
+           position index (p[1] in this example. p[0] is 'expr').
+	   The elements of the list are named tuples with attribute
+           names that match the enclosed grammar symbols (e.g., e.expr
+           in the example).
+
+           An optional value can be enclosed in brackets like this:
+
+              @('NAME LPAREN [ exprlist ] RPAREN')
+              def function_call(p):
+                  args = p[2] if p[2] else []
+                  name = p.NAME
+                  print('Calling:', name, args)
+
+           In this case, p[2] contains the optional value.  If not present,
+           the value is None.  If present, it is a tuple of values 
+           or a single value (if only one symbol). 
+
 Version 0.4
 -----------
 04/09/2019 Fixed very mysterious error message that resulted if you 
