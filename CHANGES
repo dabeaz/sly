@@ -1,4 +1,4 @@
-Version 0.5
+Version 0.4
 -----------
 03/06/2020 Added experimental support for EBNF repetition and optional
            syntax.  For example, here is a rule for a comma-separated
@@ -28,8 +28,6 @@ Version 0.5
            different "expr" symbols since that name appears in more
            than one place.
 
-Version 0.4
------------
 04/09/2019 Fixed very mysterious error message that resulted if you 
            defined a grammar rule called "start".   start can now 
            be a string or a function.
