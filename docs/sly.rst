@@ -1399,7 +1399,7 @@ like this::
 
     @_('LPAREN expr RPAREN')
     def expr(self, p):
-        return ('group-expression',p.expr])
+        return ('group-expression', p.expr)
 
     @_('NUMBER')
     def expr(self, p):
