@@ -1582,6 +1582,10 @@ def _collect_grammar_rules(func):
                         syms, prod = _replace_ebnf_repeat(syms)
                         ebnf_prod.extend(prod)
                         break
+                    elif '|' in s:
+                        syms, prod = _replace_ebnf_choice(syms)
+                        ebnf_prod.extend(prod)
+                        break
 
             if syms[1:2] == [':'] or syms[1:2] == ['::=']:
                 grammar.append((func, filename, lineno, syms[0], syms[2:]))
@@ -1598,9 +1602,17 @@ def _replace_ebnf_repeat(syms):
     syms = list(syms)
     first = syms.index('{')
     end = syms.index('}', first)
-    symname, prods = _generate_repeat_rules(syms[first+1:end])
+
+    # Look for choices inside
+    repeated_syms = syms[first+1:end]
+    if any('|' in sym for sym in repeated_syms):
+        repeated_syms, prods = _replace_ebnf_choice(repeated_syms)
+    else:
+        prods = []
+
+    symname, moreprods = _generate_repeat_rules(repeated_syms)
     syms[first:end+1] = [symname]
-    return syms, prods
+    return syms, prods + moreprods
 
 def _replace_ebnf_optional(syms):
     syms = list(syms)
@@ -1609,7 +1621,19 @@ def _replace_ebnf_optional(syms):
     symname, prods = _generate_optional_rules(syms[first+1:end])
     syms[first:end+1] = [symname]
     return syms, prods
-                
+
+def _replace_ebnf_choice(syms):
+    syms = list(syms)
+    newprods = [ ]
+    n = 0
+    while n < len(syms):
+        if '|' in syms[n]:
+            symname, prods = _generate_choice_rules(syms[n].split('|'))
+            syms[n] = symname
+            newprods.extend(prods)
+        n += 1
+    return syms, newprods
+    
 # Generate grammar rules for repeated items
 _gencount = 0
 
@@ -1727,6 +1751,31 @@ def _generate_optional_rules(symbols):
 
     productions.extend(_collect_grammar_rules(optional))
     productions.extend(_collect_grammar_rules(optional2))
+    return name, productions
+
+def _generate_choice_rules(symbols):
+    '''
+    Symbols is a list of grammar symbols such as [ 'PLUS', 'MINUS' ].
+    This generates code corresponding to the following construction:
+    
+    @('PLUS', 'MINUS')
+    def choice(self, p):
+        return p[0]
+    '''
+    global _gencount
+    _gencount += 1
+    basename = f'_{_gencount}_' + '_'.join(_sanitize_symbols(symbols))
+    name = f'{basename}_choice'
+
+    _ = _decorator
+    productions = [ ]
+
+
+    def choice(self, p):
+        return p[0]
+    choice.__name__ = name
+    choice = _(*symbols)(choice)
+    productions.extend(_collect_grammar_rules(choice))
     return name, productions
     
 class ParserMetaDict(dict):

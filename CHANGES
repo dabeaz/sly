@@ -1,5 +1,19 @@
 Version 0.4
 -----------
+05/09/2020 Experimental support for EBNF choices.  For example:
+
+	      @('term { PLUS|MINUS term }')
+              def expr(self, p):
+                  lterm = p.pterm0
+                  for op, rterm in p[1]:
+		      lterm = BinOp(op, lterm, rterm)
+
+           One issue here is just how one refers to the choice
+           of values.  There is no unified name to pick. So,
+           you basically have to do it using a numeric index like p[1].
+           In this case, p[1] is a list of all of the repeated items
+           (represented as tuples).
+
 05/09/2020 Changed the internal names used for EBNF rules to make them
            a bit easier to debug in the parser.out file.
 
@@ -8,7 +22,7 @@ Version 0.4
            expression list:
 
                @('expr { COMMA expr }')
-               def exprlist(p):
+               def exprlist(self, p):
                    return [ p.expr0 ] + p.expr1
 
            In this code, the { ... } means zero-or-more repetitions.
@@ -19,7 +33,7 @@ Version 0.4
            An optional value can be enclosed in brackets like this:
 
               @('VAR NAME [ EQUAL expr ] SEMI')
-              def variable_declaration(p):
+              def variable_declaration(self, p):
                   print(f"Definining {p.NAME}. Initial value={p.expr}")
 
            In this case, all symbols inside [ ... ] either have a value

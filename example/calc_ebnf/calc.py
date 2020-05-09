@@ -38,12 +38,6 @@ class CalcLexer(Lexer):
 class CalcParser(Parser):
     tokens = CalcLexer.tokens
 
-    precedence = (
-        ('left', PLUS, MINUS),
-        ('left', TIMES, DIVIDE),
-        ('right', UMINUS)
-        )
-
     def __init__(self):
         self.names = { }
 
@@ -55,36 +49,40 @@ class CalcParser(Parser):
     def statement(self, p):
         print(p.expr)
 
-    @_('expr PLUS expr')
+    @_('term { PLUS|MINUS term }')
     def expr(self, p):
-        return p.expr0 + p.expr1
+        lval = p.term0
+        for op, rval in p[1]:
+            if op == '+':
+                lval = lval + rval
+            elif op == '-':
+                lval = lval - rval
+        return lval
 
-    @_('expr MINUS expr')
-    def expr(self, p):
-        return p.expr0 - p.expr1
+    @_('factor { TIMES|DIVIDE factor }')
+    def term(self, p):
+        lval = p.factor0
+        for op, rval in p[1]:
+            if op == '*':
+                lval = lval * rval
+            elif op == '/':
+                lval = lval / rval
+        return lval
 
-    @_('expr TIMES expr')
-    def expr(self, p):
-        return p.expr0 * p.expr1
-
-    @_('expr DIVIDE expr')
-    def expr(self, p):
-        return p.expr0 / p.expr1
-
-    @_('MINUS expr %prec UMINUS')
-    def expr(self, p):
-        return -p.expr
+    @_('MINUS factor')
+    def factor(self, p):
+        return -p.factor
 
     @_('LPAREN expr RPAREN')
-    def expr(self, p):
+    def factor(self, p):
         return p.expr
 
     @_('NUMBER')
-    def expr(self, p):
+    def factor(self, p):
         return int(p.NUMBER)
 
     @_('NAME')
-    def expr(self, p):
+    def factor(self, p):
         try:
             return self.names[p.NAME]
         except LookupError:
