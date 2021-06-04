@@ -1,0 +1,32 @@
+
+<html>
+<body>
+  <script>
+    var imports = {};
+
+    fetch("test.wasm").then(response =>
+      response.arrayBuffer()
+    ).then(bytes =>
+           WebAssembly.instantiate(bytes, imports)
+    ).then(results => {
+      window.dsquared = results.instance.exports.dsquared;
+window.distance = results.instance.exports.distance;
+window.getval = results.instance.exports.getval;
+window.setval = results.instance.exports.setval;
+
+    });
+  </script>
+
+<h3>module test</h3>
+
+<p>
+The following exports are made. Access from the JS console.
+</p>
+
+<p><tt>dsquared(f64, f64) -> f64</tt></p>
+<p><tt>distance(f64, f64) -> f64</tt></p>
+<p><tt>getval(i32) -> i32</tt></p>
+<p><tt>setval(i32, i32) -> i32</tt></p>
+
+</body>
+</html>
