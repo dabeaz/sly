@@ -1945,7 +1945,7 @@ class Parser(metaclass=ParserMeta):
 
         unreachable = grammar.find_unreachable()
         for u in unreachable:
-           cls.log.warning('Symbol %r is unreachable', u)
+            cls.log.warning('Symbol %r is unreachable', u)
 
         if len(undefined_symbols) == 0:
             infinite = grammar.infinite_cycles()
