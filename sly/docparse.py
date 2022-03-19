@@ -8,8 +8,8 @@ class DocParseMeta(type):
     '''
     Metaclass that processes the class docstring through a parser and
     incorporates the result into the resulting class definition. This
-    allows Python classes to be defined with alternative syntax. 
-    To use this class, you first need to define a lexer and parser:
+    allows Python classes to be defined with alternative syntax.
+    To use this class, you first need to define a lexer and parser::
 
         from sly import Lexer, Parser
         class MyLexer(Lexer):
@@ -20,14 +20,14 @@ class DocParseMeta(type):
 
     You then need to define a metaclass that inherits from DocParseMeta.
     This class must specify the associated lexer and parser classes.
-    For example:
+    For example::
 
         class MyDocParseMeta(DocParseMeta):
             lexer = MyLexer
             parser = MyParser
 
     This metaclass is then used as a base for processing user-defined
-    classes:
+    classes::
 
         class Base(metaclass=MyDocParseMeta):
             pass
@@ -38,7 +38,7 @@ class DocParseMeta(type):
             ...
             """
 
-    It is expected that the MyParser() class would return a dictionary. 
+    It is expected that the MyParser() class would return a dictionary.
     This dictionary is used to create the final class Spam in this example.
     '''
 
