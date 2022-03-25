@@ -1,2 +1,3 @@
 recursive-include example *
 recursive-include docs *
+recursive-include tests *

@@ -18,11 +18,14 @@ SLY is an implementation of lex and yacc for Python 3.
             maintainer_email = "dave@dabeaz.com",
             url = "https://github.com/dabeaz/sly",
             packages = ['sly'],
+            python_requires = ">=3.6",
             tests_require = tests_require,
             extras_require = {
                 'test': tests_require,
               },
             classifiers = [
-              'Programming Language :: Python :: 3',
+                'Programming Language :: Python :: 3',
+                'Programming Language :: Python :: 3.6',
+                'Programming Language :: Python :: 3.7',
               ]
             )
