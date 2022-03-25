@@ -138,12 +138,6 @@ names of the tokens provided in the ``tokens`` set.  For example::
     PLUS = r'\+'
     MINUS = r'-'
 
-Regular expression patterns are compiled using the ``re.VERBOSE`` flag
-which can be used to help readability.  However,
-unescaped whitespace is ignored and comments are allowed in this mode.
-If your pattern involves whitespace, make sure you use ``\s``.  If you
-need to match the ``#`` character, use ``[#]`` or ``\#``.
-
 Tokens are matched in the same order that patterns are listed in the
 ``Lexer`` class.  Longer tokens always need to be specified before
 short tokens.  For example, if you wanted to have separate tokens for
