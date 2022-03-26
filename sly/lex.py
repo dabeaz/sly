@@ -35,13 +35,18 @@ __all__ = ['Lexer', 'LexerStateChange']
 
 import re
 import copy
+# type hints
+from typing import Iterator
 
 class LexError(Exception):
     '''
     Exception raised if an invalid character is encountered and no default
-    error handler function is defined.  The .text attribute of the exception
-    contains all remaining untokenized text. The .error_index is the index
-    location of the error.
+    error handler function is defined.
+
+    .. attribute:: text
+        all remaining untokenized text
+    .. attribute:: error_index
+        the index location of the error.
     '''
     def __init__(self, message, text, error_index):
         self.args = (message,)
@@ -72,12 +77,23 @@ class LexerStateChange(Exception):
 class Token(object):
     '''
     Representation of a single token.
+
+    .. attribute:: type
+    .. attribute:: value
+    .. attribute:: lineno
+    .. attribute:: index
     '''
     __slots__ = ('type', 'value', 'lineno', 'index')
     def __repr__(self):
         return f'Token(type={self.type!r}, value={self.value!r}, lineno={self.lineno}, index={self.index})'
 
 class TokenStr(str):
+    """
+        Adds the folowing meta-syntaxes:
+
+        * ``TOKEN['value'] = NEWTOKEN``
+        * ``del TOKEN['value']``
+    """
     @staticmethod
     def __new__(cls, value, key=None, remap=None):
         self = super().__new__(cls, value)
@@ -112,11 +128,11 @@ class LexerMetaDict(dict):
     def __setitem__(self, key, value):
         if isinstance(value, str):
             value = TokenStr(value, key, self.remap)
-            
+
         if isinstance(value, _Before):
             self.before[key] = value.tok
             value = TokenStr(value.pattern, key, self.remap)
-            
+
         if key in self and not isinstance(value, property):
             prior = self[key]
             if isinstance(prior, str):
@@ -181,12 +197,34 @@ class LexerMeta(type):
         return cls
 
 class Lexer(metaclass=LexerMeta):
+    """
+        These attributes may be defined in subclasses
+
+        .. attribute:: tokens
+            :type: set[str]
+
+        .. attribute:: literals
+            :type: set[str]
+
+        .. attribute:: ignore
+            :type: str
+
+        .. attribute:: reflags
+            :type: int
+
+        .. attribute:: regex_module
+            :type: module
+
+            The regex module to use. Defaults to the standard library's
+            ``re`` module.
+
+    """
     # These attributes may be defined in subclasses
     tokens = set()
     literals = set()
     ignore = ''
     reflags = 0
-    regex_module = re
+    regex_module = re  #: :meta hide-value:
 
     _token_names = set()
     _token_funcs = {}
@@ -214,7 +252,7 @@ class Lexer(metaclass=LexerMeta):
         #     Such functions can be created with the @_ decorator or by defining
         #     function with the same name as a previously defined string.
         #
-        # This function is responsible for keeping rules in order. 
+        # This function is responsible for keeping rules in order.
 
         # Collect all previous rules from base classes
         rules = []
@@ -222,7 +260,7 @@ class Lexer(metaclass=LexerMeta):
         for base in cls.__bases__:
             if isinstance(base, LexerMeta):
                 rules.extend(base._rules)
-                
+
         # Dictionary of previous rules
         existing = dict(rules)
 
@@ -230,7 +268,7 @@ class Lexer(metaclass=LexerMeta):
             if (key in cls._token_names) or key.startswith('ignore_') or hasattr(value, 'pattern'):
                 if callable(value) and not hasattr(value, 'pattern'):
                     raise LexerBuildError(f"function {value} doesn't have a regex pattern")
-                
+
                 if key in existing:
                     # The definition matches something that already existed in the base class.
                     # We replace it, but keep the original ordering
@@ -282,7 +320,7 @@ class Lexer(metaclass=LexerMeta):
         remapped_toks = set()
         for d in cls._remapping.values():
             remapped_toks.update(d.values())
-            
+
         undefined = remapped_toks - set(cls._token_names)
         if undefined:
             missing = ', '.join(undefined)
@@ -357,7 +395,7 @@ class Lexer(metaclass=LexerMeta):
         '''
         self.begin(self.__state_stack.pop())
 
-    def tokenize(self, text, lineno=1, index=0):
+    def tokenize(self, text, lineno=1, index=0) -> "Iterator[Token]":
         _ignored_tokens = _master_re = _ignore = _token_funcs = _literals = _remapping = None
 
         # --- Support for state changes
