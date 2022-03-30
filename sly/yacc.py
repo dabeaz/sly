@@ -2063,8 +2063,8 @@ class Parser(metaclass=ParserMeta):
         '''
         Parse the given input tokens.
         '''
-        lookahead = None                                  # Current lookahead symbol
-        lookaheadstack = []                               # Stack of lookahead symbols
+        self.lookahead = None                                  # Current lookahead symbol
+        self.lookaheadstack = []                               # Stack of lookahead symbols
         actions = self._lrtable.lr_action                 # Local reference to action table (to avoid lookup on self.)
         goto    = self._lrtable.lr_goto                   # Local reference to goto table (to avoid lookup on self.)
         prod    = self._grammar.Productions               # Local reference to production list (to avoid lookup on self.)
@@ -2085,17 +2085,17 @@ class Parser(metaclass=ParserMeta):
             # is already set, we just use that. Otherwise, we'll pull
             # the next token off of the lookaheadstack or from the lexer
             if self.state not in defaulted_states:
-                if not lookahead:
-                    if not lookaheadstack:
-                        lookahead = next(tokens, None)  # Get the next token
+                if not self.lookahead:
+                    if not self.lookaheadstack:
+                        self.lookahead = next(tokens, None)  # Get the next token
                     else:
-                        lookahead = lookaheadstack.pop()
-                    if not lookahead:
-                        lookahead = YaccSymbol()
-                        lookahead.type = '$end'
+                        self.lookahead = self.lookaheadstack.pop()
+                    if not self.lookahead:
+                        self.lookahead = YaccSymbol()
+                        self.lookahead.type = '$end'
 
                 # Check the action table
-                ltype = lookahead.type
+                ltype = self.lookahead.type
                 t = actions[self.state].get(ltype)
             else:
                 t = defaulted_states[self.state]
@@ -2106,8 +2106,8 @@ class Parser(metaclass=ParserMeta):
                     statestack.append(t)
                     self.state = t
 
-                    symstack.append(lookahead)
-                    lookahead = None
+                    symstack.append(self.lookahead)
+                    self.lookahead = None
 
                     # Decrease error count on successful shift
                     if errorcount:
@@ -2158,17 +2158,17 @@ class Parser(metaclass=ParserMeta):
                 if errorcount == 0 or self.errorok:
                     errorcount = ERROR_COUNT
                     self.errorok = False
-                    if lookahead.type == '$end':
+                    if self.lookahead.type == '$end':
                         errtoken = None               # End of file!
                     else:
-                        errtoken = lookahead
+                        errtoken = self.lookahead
 
                     tok = self.error(errtoken)
                     if tok:
                         # User must have done some kind of panic
                         # mode recovery on their own.  The
                         # returned token is the next lookahead
-                        lookahead = tok
+                        self.lookahead = tok
                         self.errorok = True
                         continue
                     else:
@@ -2183,40 +2183,40 @@ class Parser(metaclass=ParserMeta):
                 # entire parse has been rolled back and we're completely hosed.   The token is
                 # discarded and we just keep going.
 
-                if len(statestack) <= 1 and lookahead.type != '$end':
-                    lookahead = None
+                if len(statestack) <= 1 and self.lookahead.type != '$end':
+                    self.lookahead = None
                     self.state = 0
                     # Nuke the lookahead stack
-                    del lookaheadstack[:]
+                    del self.lookaheadstack[:]
                     continue
 
                 # case 2: the statestack has a couple of entries on it, but we're
                 # at the end of the file. nuke the top entry and generate an error token
 
                 # Start nuking entries on the stack
-                if lookahead.type == '$end':
+                if self.lookahead.type == '$end':
                     # Whoa. We're really hosed here. Bail out
                     return
 
-                if lookahead.type != 'error':
+                if self.lookahead.type != 'error':
                     sym = symstack[-1]
                     if sym.type == 'error':
                         # Hmmm. Error is on top of stack, we'll just nuke input
                         # symbol and continue
-                        lookahead = None
+                        self.lookahead = None
                         continue
 
                     # Create the error symbol for the first time and make it the new lookahead symbol
                     t = YaccSymbol()
                     t.type = 'error'
 
-                    if hasattr(lookahead, 'lineno'):
-                        t.lineno = lookahead.lineno
-                    if hasattr(lookahead, 'index'):
-                        t.index = lookahead.index
-                    t.value = lookahead
-                    lookaheadstack.append(lookahead)
-                    lookahead = t
+                    if hasattr(self.lookahead, 'lineno'):
+                        t.lineno = self.lookahead.lineno
+                    if hasattr(self.lookahead, 'index'):
+                        t.index = self.lookahead.index
+                    t.value = self.lookahead
+                    self.lookaheadstack.append(self.lookahead)
+                    self.lookahead = t
                 else:
                     sym = symstack.pop()
                     statestack.pop()
