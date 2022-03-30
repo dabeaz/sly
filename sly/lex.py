@@ -277,6 +277,8 @@ class Lexer(metaclass=LexerMeta):
         for (key, val), newtok in cls._remap.items():
             if key not in cls._remapping:
                 cls._remapping[key] = {}
+            if cls.reflags & re.IGNORECASE:
+                 val = val.lower()
             cls._remapping[key][val] = newtok
 
         remapped_toks = set()
@@ -411,7 +413,11 @@ class Lexer(metaclass=LexerMeta):
                     tok.type = m.lastgroup
 
                     if tok.type in _remapping:
-                        tok.type = _remapping[tok.type].get(tok.value, tok.type)
+                        if self.reflags & re.IGNORECASE:
+                            token_search = tok.value.lower()
+                        else:
+                            token_search = tok.value
+                        tok.type = _remapping[tok.type].get(token_search, tok.type)
 
                     if tok.type in _token_funcs:
                         self.index = index
