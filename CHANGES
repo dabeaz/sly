@@ -1,6 +1,18 @@
 In Progress
 -----------
+03/25/2022 Added automatic location tracking to the parser.  Use
+	   Parser.line_position(value) to return the line number
+           and Parser.index_position(value) to return a (start, end)
+	   index pair.  value is *any* object returned by one of
+	   the various methods in the parser definition. Typically,
+	   it would be a AST node.  The parser tracks the data using
+	   the value of id(value).
 
+03/25/2022 Added .end attribute to tokens that specify the ending
+           index of the matching text.   This is used to do more
+	   precise location tracking for the purpose of issuing
+	   more useful error messages.
+	   
 05/09/2020 Experimental support for EBNF choices.  For example:
 
 	      @('term { PLUS|MINUS term }')

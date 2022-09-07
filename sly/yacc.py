@@ -126,8 +126,6 @@ class YaccProduction:
     @property
     def lineno(self):
         for tok in self._slice:
-            if isinstance(tok, YaccSymbol):
-                continue
             lineno = getattr(tok, 'lineno', None)
             if lineno:
                 return lineno
@@ -136,13 +134,20 @@ class YaccProduction:
     @property
     def index(self):
         for tok in self._slice:
-            if isinstance(tok, YaccSymbol):
-                continue
             index = getattr(tok, 'index', None)
             if index is not None:
                 return index
         raise AttributeError('No index attribute found')
 
+    @property
+    def end(self):
+        result = None
+        for tok in self._slice:
+            r = getattr(tok, 'end', None)
+            if r:
+                result = r
+        return result
+    
     def __getattr__(self, name):
         if name in self._namemap:
             return self._namemap[name](self._slice)
@@ -1806,12 +1811,6 @@ class ParserMeta(type):
     @classmethod
     def __prepare__(meta, *args, **kwargs):
         d = ParserMetaDict()
-#        def _(rule, *extra):
-#            rules = [rule, *extra]
-#            def decorate(func):
-#                func.rules = [ *getattr(func, 'rules', []), *rules[::-1] ]
-#                return func
-#            return decorate
         d['_'] = _decorator
         return d
 
@@ -1822,6 +1821,9 @@ class ParserMeta(type):
         return cls
 
 class Parser(metaclass=ParserMeta):
+    # Automatic tracking of position information
+    track_positions = True
+    
     # Logging object where debugging/diagnostic messages are sent
     log = SlyLogger(sys.stderr)     
 
@@ -2076,8 +2078,14 @@ class Parser(metaclass=ParserMeta):
         self.tokens = tokens
         self.statestack = statestack = []                 # Stack of parsing states
         self.symstack = symstack = []                     # Stack of grammar symbols
-        pslice._stack = symstack                           # Associate the stack with the production
+        pslice._stack = symstack                          # Associate the stack with the production
         self.restart()
+
+        # Set up position tracking
+        track_positions = self.track_positions
+        if not hasattr(self, '_line_positions'):
+            self._line_positions = { }           # id: -> lineno
+            self._index_positions = { }          # id: -> (start, end)
 
         errtoken   = None                                 # Err token
         while True:
@@ -2093,7 +2101,7 @@ class Parser(metaclass=ParserMeta):
                     if not lookahead:
                         lookahead = YaccSymbol()
                         lookahead.type = '$end'
-
+                    
                 # Check the action table
                 ltype = lookahead.type
                 t = actions[self.state].get(ltype)
@@ -2129,7 +2137,23 @@ class Parser(metaclass=ParserMeta):
                     value = p.func(self, pslice)
                     if value is pslice:
                         value = (pname, *(s.value for s in pslice._slice))
+
                     sym.value = value
+                        
+                    # Record positions
+                    if track_positions:
+                        if plen:
+                            sym.lineno = symstack[-plen].lineno
+                            sym.index = symstack[-plen].index
+                            sym.end = symstack[-1].end
+                        else:
+                            # A zero-length production  (what to put here?)
+                            sym.lineno = None
+                            sym.index = None
+                            sym.end = None
+                        self._line_positions[id(value)] = sym.lineno
+                        self._index_positions[id(value)] = (sym.index, sym.end)
+                            
                     if plen:
                         del symstack[-plen:]
                         del statestack[-plen:]
@@ -2214,6 +2238,8 @@ class Parser(metaclass=ParserMeta):
                         t.lineno = lookahead.lineno
                     if hasattr(lookahead, 'index'):
                         t.index = lookahead.index
+                    if hasattr(lookahead, 'end'):
+                        t.end = lookahead.end
                     t.value = lookahead
                     lookaheadstack.append(lookahead)
                     lookahead = t
@@ -2225,3 +2251,11 @@ class Parser(metaclass=ParserMeta):
 
             # Call an error function here
             raise RuntimeError('sly: internal parser error!!!\n')
+
+    # Return position tracking information
+    def line_position(self, value):
+        return self._line_positions[id(value)]
+
+    def index_position(self, value):
+        return self._index_positions[id(value)]
+    

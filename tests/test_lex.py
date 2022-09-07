@@ -1,11 +1,6 @@
 import pytest
 from sly import Lexer
 
-try:
-    import regex
-except ImportError:
-    regex = None
-
 class CalcLexer(Lexer):
     # Set of token names.   This is always required
     tokens = {
@@ -61,29 +56,6 @@ class CalcLexer(Lexer):
     def __init__(self):
         self.errors = []
 
-if regex is not None:
-    class RegexModuleCalcLexer(Lexer):
-        regex_module = regex
-
-        tokens = { 'ID', 'PLUS', 'MINUS' }
-
-        literals = { '(', ')' }
-        ignore = ' \t'
-
-        ID      = r'\p{Ll}+'  # Unicode lowercase letters, regex module feature
-        PLUS    = r'\+'
-        MINUS   = r'-'
-
-        ignore_comment = r'\#.*'
-
-        @_(r'\n+')
-        def newline(self, t):
-            self.lineno += t.value.count('\n')
-
-        def ID(self, t):
-            t.value = t.value.upper()
-            return t
-
 # Test basic recognition of various tokens and literals
 def test_tokens():
     lexer = CalcLexer()
@@ -93,17 +65,21 @@ def test_tokens():
     assert types == ['ID','NUMBER','PLUS','MINUS','TIMES','DIVIDE','ASSIGN','LT','LE','(',')']
     assert vals == ['ABC', 123, '+', '-', '*', '/', '=', '<', '<=', '(', ')']
 
-# Test third-party regex module support
-@pytest.mark.skipif(regex is None,
-                    reason="third-party regex module not installed")
-def test_3rd_party_regex_module():
-    lexer = RegexModuleCalcLexer()
-    toks = list(lexer.tokenize('a + b - c'))
-    types = [t.type for t in toks]
-    vals = [t.value for t in toks]
-    assert types == ['ID','PLUS','ID','MINUS','ID']
-    assert vals == ['A', '+', 'B', '-', 'C']
+# Test position tracking
+def test_positions():
+    lexer = CalcLexer()
+    text = 'abc\n( )'
+    toks = list(lexer.tokenize(text))
+    lines = [t.lineno for t in toks ]
+    indices = [t.index for t in toks ]
+    ends = [t.end for t in toks]
+    values = [ text[t.index:t.end] for t in toks ]
+    assert values == ['abc', '(', ')']
+    assert lines == [1, 2, 2]
+    assert indices == [0, 4, 6]
+    assert ends == [3, 5, 7]
 
+    
 # Test ignored comments and newlines
 def test_ignored():
     lexer = CalcLexer()
@@ -228,23 +204,5 @@ def test_modern_error_return():
     assert vals == [123, ':+-', '+', '-']
     assert lexer.errors == [ ':+-' ]
 
-# Test Lexer Inheritance.  This class should inherit all of the tokens
-# and features of ModernCalcLexer, but add two new tokens to it.  The
-# PLUSPLUS token matches before the PLUS token.
-
-if False:
-    class SubModernCalcLexer(ModernCalcLexer):
-        tokens |= { DOLLAR, PLUSPLUS }
-        DOLLAR = r'\$'
-        PLUSPLUS = r'\+\+'
-        PLUSPLUS.before = PLUS
-
-    def test_lexer_inherit():
-        lexer = SubModernCalcLexer()
-        toks = list(lexer.tokenize('123 + - $ ++ if'))
-        types = [t.type for t in toks]
-        vals = [t.value for t in toks]
-        assert types == ['NUMBER', 'PLUS', 'MINUS', 'DOLLAR', 'PLUSPLUS', 'IF']
-        assert vals == [123, '+', '-', '$', '++', 'if']
 
 

@@ -73,9 +73,9 @@ class Token(object):
     '''
     Representation of a single token.
     '''
-    __slots__ = ('type', 'value', 'lineno', 'index')
+    __slots__ = ('type', 'value', 'lineno', 'index', 'end')
     def __repr__(self):
-        return f'Token(type={self.type!r}, value={self.value!r}, lineno={self.lineno}, index={self.index})'
+        return f'Token(type={self.type!r}, value={self.value!r}, lineno={self.lineno}, index={self.index}, end={self.end})'
 
 class TokenStr(str):
     @staticmethod
@@ -406,7 +406,7 @@ class Lexer(metaclass=LexerMeta):
                 tok.index = index
                 m = _master_re.match(text, index)
                 if m:
-                    index = m.end()
+                    tok.end = index = m.end()
                     tok.value = m.group()
                     tok.type = m.lastgroup
 
@@ -431,6 +431,7 @@ class Lexer(metaclass=LexerMeta):
                     # No match, see if the character is in literals
                     if text[index] in _literals:
                         tok.value = text[index]
+                        tok.end = index + 1
                         tok.type = tok.value
                         index += 1
                         yield tok
@@ -442,6 +443,7 @@ class Lexer(metaclass=LexerMeta):
                         tok.value = text[index:]
                         tok = self.error(tok)
                         if tok is not None:
+                            tok.end = self.index
                             yield tok
 
                         index = self.index
