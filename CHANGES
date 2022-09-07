@@ -1,5 +1,8 @@
 In Progress
 -----------
+09/06/2022 Modernization of the packaging infrastructure. Slight
+           project reorganization.
+
 03/25/2022 Added automatic location tracking to the parser.  Use
 	   Parser.line_position(value) to return the line number
            and Parser.index_position(value) to return a (start, end)
