@@ -33,6 +33,14 @@ SLY is a modern library for performing lexing and parsing. It
 implements the LALR(1) parsing algorithm, commonly used for
 parsing and compiling various programming languages. 
 
+Important Notice : October 11, 2022
+-----------------------------------
+I'm officially retiring the SLY project.  There will be no further
+releases.  Should you choose to still use it, the GitHub repo will
+remain alive--feel free to vendor the code and report bugs as you see
+fit.  I'd like to thank everyone who contributed to the
+project. -- Dave
+
 Requirements
 ------------
 
