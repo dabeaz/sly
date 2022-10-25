@@ -1,5 +1,9 @@
-In Progress
+Version 0.5
 -----------
+10/25/2022 ***IMPORTANT NOTE*** This is the last release to be made
+           on PyPi.  If you want the latest version go to
+	   https://github.com/dabeaz/sly.
+	   
 09/06/2022 Modernization of the packaging infrastructure. Slight
            project reorganization.
 
