@@ -35,11 +35,13 @@ parsing and compiling various programming languages.
 
 Important Notice : October 11, 2022
 -----------------------------------
-I'm officially retiring the SLY project.  There will be no further
-releases.  Should you choose to still use it, the GitHub repo will
-remain alive--feel free to vendor the code and report bugs as you see
-fit.  I'd like to thank everyone who contributed to the
-project. -- Dave
+The SLY project is no longer making package-installable releases.
+It's fully functional, but if choose to use it, you should
+vendor the code into your application. SLY has zero-dependencies.
+Although I am semi-retiring the project, I will respond to
+bug reports and still may decide to make future changes to it
+depending on my mood. I'd like to thank everyone who
+has contributed to it over the years. --Dave
 
 Requirements
 ------------
