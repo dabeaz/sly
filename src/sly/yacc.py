@@ -1816,6 +1816,7 @@ class ParserMeta(type):
 
     def __new__(meta, clsname, bases, attributes):
         del attributes['_']
+        attributes.__setitem__('attrs', list(attributes.items()))
         cls = super().__new__(meta, clsname, bases, attributes)
         cls._build(list(attributes.items()))
         return cls
@@ -1888,7 +1889,7 @@ class Parser(metaclass=ParserMeta):
         return True
 
     @classmethod
-    def __build_grammar(cls, rules):
+    def __build_grammar(cls, rules, instance=None):
         '''
         Build the grammar from the grammar rules
         '''
@@ -1918,7 +1919,10 @@ class Parser(metaclass=ParserMeta):
             except SyntaxError as e:
                 errors += f'{e}\n'
         try:
-            grammar.set_start(getattr(cls, 'start', None))
+            if instance is not None and instance.start is not None:
+                grammar.set_start(instance.start)
+            else:
+                grammar.set_start(getattr(cls, 'start', None))
         except GrammarError as e:
             errors += f'{e}\n'
 
@@ -2002,7 +2006,7 @@ class Parser(metaclass=ParserMeta):
     # they were defined.  This method is triggered by a metaclass.
     # ----------------------------------------------------------------------
     @classmethod
-    def _build(cls, definitions):
+    def _build(cls, definitions, instance=None):
         if vars(cls).get('_build', False):
             return
 
@@ -2014,7 +2018,7 @@ class Parser(metaclass=ParserMeta):
             raise YaccError('Invalid parser specification')
 
         # Build the underlying grammar object
-        cls.__build_grammar(rules)
+        cls.__build_grammar(rules, instance)
 
         # Build the LR tables
         if not cls.__build_lrtables():
@@ -2061,10 +2065,14 @@ class Parser(metaclass=ParserMeta):
         self.statestack.append(0)
         self.state = 0
 
-    def parse(self, tokens):
+    def parse(self, tokens, start_override=None):
         '''
         Parse the given input tokens.
         '''
+        if start_override is not None and start_override != self._grammar.Start:
+            self.start = start_override
+            self._build(self.attrs, self)
+
         lookahead = None                                  # Current lookahead symbol
         lookaheadstack = []                               # Stack of lookahead symbols
         actions = self._lrtable.lr_action                 # Local reference to action table (to avoid lookup on self.)
