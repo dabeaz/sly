@@ -413,7 +413,7 @@ into practice::
         # Set of token names.   This is always required
         tokens = { NUMBER, ID, WHILE, IF, ELSE, PRINT,
                    PLUS, MINUS, TIMES, DIVIDE, ASSIGN,
-                   EQ, LT, LE, GT, GE, NE }
+                   EQ, LT, LE, GT, GE, NE, LPAREN, RPAREN }
 
 
         literals = { '(', ')', '{', '}', ';' }
@@ -433,6 +433,8 @@ into practice::
         GE      = r'>='
         GT      = r'>'
         NE      = r'!='
+        LPAREN  = r'\('
+        RPAREN  = r'\)'
 
         @_(r'\d+')
         def NUMBER(self, t):
