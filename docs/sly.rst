@@ -1174,6 +1174,114 @@ also be stressed that not all shift-reduce conflicts are bad.
 However, the only way to be sure that they are resolved correctly is
 to look at the debugging file.
 
+Conflict counterexamples
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+To help tracking conflicts, SLY generates counterexamples in the debug file.
+For each conflict, SLY will generate one or more examples for each
+possibility in a shift/reduce or reduce/reduce conflict. The examples are
+a sequence of terminals and nonterminals that the grammar could interpret
+in two ways. SLY will show the different derivations, showing clearly what
+the ambiguities were. The counterexamples are listed at the end of the debug
+file and look like this::
+
+    shift/reduce conflict for ELSE in state 11 resolved as shift
+        shift using rule if_statement -> IF LPAREN expr RPAREN statement . ELSE statement
+        ╭╴
+        │ IF LPAREN expr RPAREN IF LPAREN expr RPAREN statement ♦ ELSE statement
+        │                       ╰if_statement──────────────────────────────────╯
+        │                       ╰statement─────────────────────────────────────╯
+        │ ╰if_statement────────────────────────────────────────────────────────╯
+        │ ╰statement───────────────────────────────────────────────────────────╯
+        ╰╴
+
+        reduce using rule if_statement -> IF LPAREN expr RPAREN statement .
+        ╭╴
+        │ IF LPAREN expr RPAREN IF LPAREN expr RPAREN statement ♦ ELSE statement
+        │                       ╰if_statement───────────────────╯
+        │                       ╰statement──────────────────────╯
+        │ ╰if_statement────────────────────────────────────────────────────────╯
+        │ ╰statement───────────────────────────────────────────────────────────╯
+        ╰╴
+
+For each counterexample, the display starts with the list of symbols that cause
+an ambiguity. The diamond shows the current location of the parser, and the
+symbol following the diamond is the lookahead.
+The lines below the symol sequence show the possible reductions according to the
+grammar rules. The problem displayed here is the `dangling else
+<https://en.wikipedia.org/wiki/Dangling_else>`_ issue;
+the first counterexample shows the reduction sequence if the shift path is taken;
+the ``ELSE`` is attached to the rightmost ``if_statement``. In the second example,
+SLY shows that another interpretation could be to reduce the second
+``if_statement`` early and attach the ``ELSE`` sequence to the leftmost
+``if_statement`` instead.
+
+Here is an example of a reduce/reduce conflict that occurs in the C language::
+
+    reduce/reduce conflict for ) in state 21 resolved using rule expr -> IDENTIFIER
+    rejected rule (declarator -> IDENTIFIER) in state 21
+        reduce using expr -> IDENTIFIER with lookahead )
+        ╭╴
+        │ TYPENAME ( IDENTIFIER ♦ )
+        │            ╰expr──────╯
+        │ ╰expr───────────────────╯
+        ╰╴
+
+        reduce using declarator -> IDENTIFIER with lookahead )
+        ╭╴
+        │ TYPENAME ( IDENTIFIER ♦ ) ;
+        │            ╰declarator╯
+        │          ╰declarator────╯
+        │ ╰decl─────────────────────╯
+        ╰╴
+
+In the same way as the shift/reduce conflict, SLY shows here the two ways of
+understanding the sequence. It will always backtrack far enough to find the lookahead
+symbol after a reduction.
+
+Sometimes, it can be hard to understand why SLY encounters a conflict in the
+first place. Consider this example taken from the C11 grammar::
+
+    shift/reduce conflict for [ in state 561 resolved as shift
+        shift using rule attribute_specifier -> . [ [ attribute_list ] ]
+        ╭╴
+        │ identifier ♦ [ [ attribute_list ] ]
+        │            ╰attribute_specifier───╯
+        │            ╰attribute_specifier_sequence╯
+        │ ╰direct_declarator──────────────────────╯
+        ╰╴
+
+        reduce using rule direct_declarator -> identifier .
+        ╭╴
+        │ identifier ♦        [ ]
+        │ ╰direct_declarator╯
+        │ ╰array_declarator─────╯
+        ╰╴
+
+Here, the two sequences are not ambiguous when considered in their entirety;
+it is clear that the symbol following the first ``[`` will determine if the
+input was supposed to be interpreted as an ``array_declarator`` or as a
+``direct_declarator`` including an ``attribute_specifier``. While the grammar
+is not ambiguous in this example, it is not LR(1) (in this case, LR(2) would
+have removed the conflict) and the state machine does not have enough information
+at the time it encounters the lookahead symbol to unambiguously determine what
+to do next.
+
+Viewing the state machine
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+SLY can save the state machine in a file in the DOT format that can be used with
+graphing tools such as `graphviz <https://graphviz.org/>`_ or even viewed online
+in `Edotor <https://edotor.net/>`_. The graph can help visualize how the state
+machine is built. Such graphs can become very big for big grammars and are not
+always practical, but building such a graph for a small grammar.
+
+In order to generate such a file, add a ``dotfile`` attribute to your
+class like this::
+
+    class CalcParser(Parser):
+        dotfile = 'parser.gv'
+
 Syntax Error Handling
 ^^^^^^^^^^^^^^^^^^^^^
 

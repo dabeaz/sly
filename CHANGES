@@ -1,5 +1,13 @@
+Version 0.6
+-----------
+
+01/22/2023 Experimental support for counterexamples. SLY will now give
+           counterexamples for shift/reduce and reduce/reduce conflicts.
+
+
 Version 0.5
 -----------
+
 10/25/2022 ***IMPORTANT NOTE*** This is the last release to be made
            on PyPi.  If you want the latest version go to
 	   https://github.com/dabeaz/sly.
@@ -19,7 +27,7 @@ Version 0.5
            index of the matching text.   This is used to do more
 	   precise location tracking for the purpose of issuing
 	   more useful error messages.
-	   
+
 05/09/2020 Experimental support for EBNF choices.  For example:
 
 	      @('term { PLUS|MINUS term }')
