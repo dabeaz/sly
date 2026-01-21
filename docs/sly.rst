@@ -345,7 +345,7 @@ appropriately. For example::
               return t
 
           @_(r'\}')
-          def rbrace(t):
+          def rbrace(self, t):
               t.type = '}'      # Set token type to the expected literal
 	      self.nesting_level -=1
               return t
