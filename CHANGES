@@ -115,7 +115,7 @@ Version 0.3
                 ignore = ' \t'
 		
                 NAME = r'[a-zA-Z]+'
-		NUMBER = r'\d+'
+                NUMBER = r'\d+'
 
                
             class ChildLexer(BaseLexer):
