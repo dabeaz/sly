@@ -33,15 +33,20 @@ SLY is a modern library for performing lexing and parsing. It
 implements the LALR(1) parsing algorithm, commonly used for
 parsing and compiling various programming languages. 
 
-Important Notice : October 11, 2022
------------------------------------
-The SLY project is no longer making package-installable releases.
-It's fully functional, but if choose to use it, you should
-vendor the code into your application. SLY has zero-dependencies.
-Although I am semi-retiring the project, I will respond to
-bug reports and still may decide to make future changes to it
-depending on my mood. I'd like to thank everyone who
-has contributed to it over the years. --Dave
+Important Notice : December 21, 2025
+------------------------------------
+
+I've decided to retire the SLY project.  No further maintenance is
+expected.  There are many high quality parsing libraries available
+for Python that you might consider instead.  Or you could keep using SLY
+by copying it into code.  Or you could write a hand-rolled recursive
+descent parser (which can be a lot of fun).   I don't have a
+specific recommendation.
+
+Thanks for everyone who supported SLY over the years!
+
+Cheers,
+Dave
 
 Requirements
 ------------
